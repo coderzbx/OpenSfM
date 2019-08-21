@@ -16,6 +16,7 @@ from timeit import default_timer as timer
 from six import iteritems
 
 from opensfm import csfm
+from opensfm import geo
 from opensfm import log
 from opensfm import tracking
 from opensfm import multiview
@@ -472,6 +473,7 @@ def get_image_metadata(data, image):
     metadata = types.ShotMetadata()
     exif = data.load_exif(image)
     reference = data.load_reference()
+    metadata.reference = reference
     if ('gps' in exif and
             'latitude' in exif['gps'] and
             'longitude' in exif['gps']):
@@ -484,6 +486,14 @@ def get_image_metadata(data, image):
         x, y, z = reference.to_topocentric(lat, lon, alt)
         metadata.gps_position = [x, y, z]
         metadata.gps_dop = exif['gps'].get('dop', 15.0)
+    if 'r' in exif and 't' in exif and 'c' in exif:
+        # convert RT in lla to RT din xyz coordinate
+        [x, y, z] = metadata.gps_position
+        c_matrix = np.matrix([[x], [y], [z]])
+        r_matrix = np.matrix(exif['r'])
+        t_matrix = r_matrix.dot(-c_matrix)
+        metadata.r_matrix = r_matrix
+        metadata.t_matrix = t_matrix
     else:
         metadata.gps_position = [0.0, 0.0, 0.0]
         metadata.gps_dop = 999999.0
@@ -676,14 +686,15 @@ def bootstrap_reconstruction(data, graph, im1, im2, p1, p2):
     min_inliers = data.config['five_point_algo_min_inliers']
     R, t, inliers, report['two_view_reconstruction'] = \
         two_view_reconstruction_general(p1, p2, camera1, camera2, threshold)
-
+    logger.info("==================================")
     logger.info("Two-view reconstruction inliers: {} / {}".format(
         len(inliers), len(p1)))
-
     if len(inliers) <= 5:
         report['decision'] = "Could not find initial motion"
         logger.info(report['decision'])
         return None, None, report
+
+    logger.info("two_view_reconstruction_general, R:{}, T:{}".format(R, t))
 
     reconstruction = types.Reconstruction()
     reconstruction.reference = data.load_reference()
@@ -692,16 +703,43 @@ def bootstrap_reconstruction(data, graph, im1, im2, p1, p2):
     shot1 = types.Shot()
     shot1.id = im1
     shot1.camera = camera1
-    shot1.pose = types.Pose()
     shot1.metadata = get_image_metadata(data, im1)
+    #
+    reference = data.load_reference()
+    [x, y, z] = shot1.metadata.gps_position
+    reference.to_lla(x, y, z)
+    real_gps = [reference.lon, reference.lat, reference.alt]
+    logger.info("bootstrap reconstruction, image1: {}, R:{}, T:{}, C:{}, GPS:{}".format(
+        im1, shot1.metadata.r_matrix, shot1.metadata.t_matrix, shot1.metadata.gps_position, real_gps
+    ))
+    # convert RT in lla to RT din xyz coordinate
+    r_matrix = shot1.metadata.r_matrix
+    shot1.pose = types.Pose()
+    shot1.pose.set_rotation_matrix(r_matrix, permissive=True)
+    shot1.pose.set_origin(shot1.metadata.gps_position)
+    # logger.info("image1, origin:{}, gps_location:{}".format(shot1.metadata.gps_position, shot1.metadata.gps_position))
     reconstruction.add_shot(shot1)
 
     shot2 = types.Shot()
     shot2.id = im2
     shot2.camera = camera2
-    shot2.pose = types.Pose(R, t)
     shot2.metadata = get_image_metadata(data, im2)
+    #
+    [x, y, z] = shot2.metadata.gps_position
+    reference.to_lla(x, y, z)
+    real_gps = [reference.lon, reference.lat, reference.alt]
+    logger.info("bootstrap reconstruction, image2: {}, R:{}, T:{}, C:{}, GPS:{}".format(
+        im2, shot2.metadata.r_matrix, shot2.metadata.t_matrix, shot2.metadata.gps_position, real_gps
+    ))
+    #
+    r_matrix = shot2.metadata.r_matrix
+    shot2.pose = types.Pose()
+    # origin = shot2.pose.get_origin()
+    shot2.pose.set_rotation_matrix(r_matrix, permissive=True)
+    shot2.pose.set_origin(shot2.metadata.gps_position)
+    # logger.info("image2, origin:{}, gps_location:{}".format(origin, shot1.metadata.gps_position))
     reconstruction.add_shot(shot2)
+    logger.info("==================================")
 
     graph_inliers = nx.Graph()
     triangulate_shot_features(graph, graph_inliers, reconstruction, im1, data.config)
@@ -764,9 +802,9 @@ def resect(graph, graph_inliers, reconstruction, shot_id,
 
     T = multiview.absolute_pose_ransac(
         bs, Xs, b"KNEIP", 1 - np.cos(threshold), 1000, 0.999)
-
     R = T[:, :3]
     t = T[:, 3]
+    logger.info("ransanc pose: R:{}, T:{}".format(R, t))
 
     reprojected_bs = R.T.dot((Xs - t).T).T
     reprojected_bs /= np.linalg.norm(reprojected_bs, axis=1)[:, np.newaxis]
@@ -781,16 +819,29 @@ def resect(graph, graph_inliers, reconstruction, shot_id,
         'num_inliers': ninliers,
     }
     if ninliers >= min_inliers:
-        R = T[:, :3].T
-        t = -R.dot(T[:, 3])
+        # R = T[:, :3].T
+        # t = -R.dot(T[:, 3])
         shot = types.Shot()
         shot.id = shot_id
         shot.camera = camera
+        # shot.pose = types.Pose()
+        # shot.pose.set_rotation_matrix(R)
+        # shot.pose.translation = t
+        r_matrix = metadata.r_matrix
         shot.pose = types.Pose()
-        shot.pose.set_rotation_matrix(R)
-        shot.pose.translation = t
+        shot.pose.set_rotation_matrix(r_matrix, permissive=True)
+        shot.pose.set_origin(metadata.gps_position)
         shot.metadata = metadata
         reconstruction.add_shot(shot)
+        #
+        # reference = metadata.reference
+        # [x, y, z] = metadata.gps_position
+        # reference.to_lla(x, y, z)
+        # real_gps = [reference.lon, reference.lat, reference.alt]
+        # logger.info("grow reconstruction, image: {}, R:{}, T:{}, C:{}, GPS:{}".format(
+        #     shot_id, metadata.r_matrix, metadata.t_matrix, metadata.gps_position, real_gps
+        # ))
+        #
         for i, succeed in enumerate(inliers):
             if succeed:
                 copy_graph_data(graph, graph_inliers, shot_id, ids[i])
@@ -1342,6 +1393,7 @@ def incremental_reconstruction(data, graph):
     common_tracks = tracking.all_common_tracks(graph, tracks)
     reconstructions = []
     pairs = compute_image_pairs(common_tracks, data)
+    logger.info("pair:{}\n".format(pairs))
     chrono.lap('compute_image_pairs')
     report['num_candidate_image_pairs'] = len(pairs)
     report['reconstructions'] = []

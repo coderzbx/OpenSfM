@@ -86,16 +86,13 @@ def match_candidates_with_bow(data, images_ref, images_cand,
                                                  max_gps_distance)
         preempted_cand = defaultdict(list)
         for p in gps_pairs:
-            if p[0] in images_ref:
-                preempted_cand[p[0]].append(p[1])
-            if p[1] in images_ref:
-                preempted_cand[p[1]].append(p[0])
+            preempted_cand[p[0]].append(p[1])
+            preempted_cand[p[1]].append(p[0])
 
     # reduce sets of images from which to load words (RAM saver)
     need_load = set(preempted_cand.keys())
-    for k, v in preempted_cand.items():
+    for v in preempted_cand.values():
         need_load.update(v)
-        need_load.add(k)
 
     # construct BoW histograms
     logger.info("Computing %d BoW histograms" % len(need_load))
@@ -149,7 +146,7 @@ def match_candidates_by_time(images_ref, images_cand, exifs, max_neighbors):
         nn = k+1 if image_ref in images_cand else k
 
         time = exifs[image_ref]['capture_time']
-        distances, neighbors = tree.query([time], k=nn)
+        distances, neighbors = tree.query(time, k=nn)
         for j in neighbors:
             if j >= len(images_cand):
                 continue
@@ -172,7 +169,7 @@ def match_candidates_by_order(images_ref, images_cand, max_neighbors):
         for j in range(a, b):
             image_cand = images_cand[j]
             if image_ref != image_cand:
-                pairs.add(tuple(sorted([image_ref, image_cand])))
+                pairs.add(tuple(sorted((image_ref, image_cand))))
     return pairs
 
 
