@@ -213,6 +213,7 @@ def prune_depthmap(arguments):
 def merge_depthmaps(data, reconstruction):
     """Merge depthmaps into a single point cloud."""
     logger.info("Merging depthmaps")
+    reference = data.load_reference()
 
     shot_ids = [s for s in reconstruction.shots if data.pruned_depthmap_exists(s)]
 
@@ -232,6 +233,19 @@ def merge_depthmaps(data, reconstruction):
         colors.append(c)
         labels.append(l)
         detections.append(d)
+        # convert local coordinate to lla
+        point_count = p.shape[0]
+        for i in range(point_count):
+            x = float(p[i][0])
+            y = float(p[i][1])
+            z = float(p[i][2])
+            lat, lon, alt = reference.to_lla(x, y, z)
+            p[i][0] = lon
+            p[i][1] = lat
+            p[i][2] = alt
+            # logger.info("local[{:.4f} {:.4f} {:.4f}] -> lla[{:.8f} {:.8f} {:.8f}]".format(
+            #     x, y, z, lon, lat, alt
+            # ))
 
     points = np.concatenate(points)
     normals = np.concatenate(normals)
@@ -444,9 +458,9 @@ def _point_cloud_to_ply_lines(points, normals, colors, labels, detections):
     yield "ply\n"
     yield "format ascii 1.0\n"
     yield "element vertex {}\n".format(len(points))
-    yield "property float x\n"
-    yield "property float y\n"
-    yield "property float z\n"
+    yield "property double x\n"
+    yield "property double y\n"
+    yield "property double z\n"
     yield "property float nx\n"
     yield "property float ny\n"
     yield "property float nz\n"
@@ -457,7 +471,7 @@ def _point_cloud_to_ply_lines(points, normals, colors, labels, detections):
     yield "property uchar detection\n"
     yield "end_header\n"
 
-    template = "{:.4f} {:.4f} {:.4f} {:.3f} {:.3f} {:.3f} {} {} {} {} {}\n"
+    template = "{:.8f} {:.8f} {:.8f} {:.3f} {:.3f} {:.3f} {} {} {} {} {}\n"
     for i in range(len(points)):
         p, n, c, l, d = points[i], normals[i], colors[i], labels[i], detections[i]
         yield template.format(
