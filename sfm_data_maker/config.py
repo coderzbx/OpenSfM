@@ -57,7 +57,7 @@ class GPSAlignmentParams(object):
 
 class PreemptiveMatchingParams(object):
     def __init__(self, matching_gps_distance=0, matching_gps_neighbors=0, matching_time_neighbors=0,
-                 matching_order_neighbors=1, matching_bow_neighbors=0):
+                 matching_order_neighbors=10, matching_bow_neighbors=0):
         # Maximum gps distance between two images for matching
         self._matching_gps_distance = matching_gps_distance
         # Number of images to match selected by GPS distance. Set to 0 to use no limit (or disable if matching_gps_distance is also 0)
@@ -81,7 +81,7 @@ class PreemptiveMatchingParams(object):
 
 
 class Config(object):
-    def __init__(self, processes=8, feature_type="HAHOG", feature_root=1, feature_min_frames=2000,
+    def __init__(self, processes=16, feature_type="HAHOG", feature_root=1, feature_min_frames=2000,
                  feature_process_size=-1, feature_use_adaptive_suppression=False):
         # processes
         self._processes = processes

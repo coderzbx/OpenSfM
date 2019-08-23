@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="RemoteMappingsManager">
+    <list>
+      <list>
+        <remote-mappings server-id="python@ssh://kddev@10.11.5.170:22/usr/bin/python">
+          <settings>
+            <list>
+              <mapping local-root="$PROJECT_DIR$" remote-root="/home/kddev/benxing/projects/sfm_data_maker" />
+            </list>
+          </settings>
+        </remote-mappings>
+        <remote-mappings server-id="python@ssh://root@10.11.5.170:102/usr/bin/python">
+          <settings>
+            <list>
+              <mapping local-root="$PROJECT_DIR$/../OpenSfM" remote-root="/source/OpenSfM" />
+            </list>
+          </settings>
+        </remote-mappings>
+      </list>
+    </list>
+  </component>
+</project>

@@ -17,7 +17,7 @@ class ImageOrientation(Enum):
 
 
 class SfMCamera(object):
-    def __init__(self, camera_id, maker, model, projection_type="brown"):
+    def __init__(self, camera_id, maker, model, projection_type="perspective"):
         self._camera_id = camera_id
         self._maker = maker
         self._model = model
