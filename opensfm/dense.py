@@ -5,7 +5,9 @@ from __future__ import unicode_literals
 
 import logging
 
+import os
 import cv2
+import json
 import numpy as np
 from six import iteritems
 
@@ -55,6 +57,38 @@ def compute_depthmaps(data, graph, reconstruction):
     parallel_map(prune_depthmap_catched, arguments, processes)
 
     merge_depthmaps(data, reconstruction)
+
+    reference = data.load_reference()
+    new_pos = []
+    for shot in reconstruction.shots.values():
+        image_name = shot.id
+        R = shot.pose.get_rotation_matrix()
+        R_angle = shot.pose.rotation
+        R_angle_json = np.array(R_angle).reshape(-1, ).tolist()
+        [x, y, z] = shot.pose.get_origin()
+        [lat, lon, alt] = reference.to_lla(x, y, z)
+        C = [lon, lat, alt]
+        T = -R.dot(C)
+        T_json = np.array(T).reshape(-1, ).tolist()
+        R_list = np.array(R).reshape(-1, ).tolist()
+        R_json = [
+            [R_list[0], R_list[1], R_list[2]],
+            [R_list[3], R_list[4], R_list[5]],
+            [R_list[6], R_list[7], R_list[8]]
+        ]
+        shot_pos = {
+            image_name: {
+                "sfm_angle_R": R_angle_json,
+                "lla_R": R_json,
+                "lla_T": T_json,
+                "lla_C": C
+            }
+        }
+        new_pos.append(shot_pos)
+    new_pos.sort()
+    pos_file_path = os.path.join(data._depthmap_path(), "../new_pos.json")
+    with open(pos_file_path, "w") as f:
+        json.dump(new_pos, f)
 
 
 def compute_depthmap_catched(arguments):
@@ -228,24 +262,24 @@ def merge_depthmaps(data, reconstruction):
     detections = []
     for shot_id in shot_ids:
         p, n, c, l, d = data.load_pruned_depthmap(shot_id)
+        # convert local coordinate to lla
+        # point_count = p.shape[0]
+        # for i in range(point_count):
+        #     x = float(p[i][0])
+        #     y = float(p[i][1])
+        #     z = float(p[i][2])
+        #     lat, lon, alt = reference.to_lla(x, y, z)
+        #     p[i][0] = lon
+        #     p[i][1] = lat
+        #     p[i][2] = alt
+            # logger.info("local[{:.4f} {:.4f} {:.4f}] -> lla[{:.8f} {:.8f} {:.8f}]".format(
+            #     x, y, z, lon, lat, alt
+            # ))
         points.append(p)
         normals.append(n)
         colors.append(c)
         labels.append(l)
         detections.append(d)
-        # convert local coordinate to lla
-        point_count = p.shape[0]
-        for i in range(point_count):
-            x = float(p[i][0])
-            y = float(p[i][1])
-            z = float(p[i][2])
-            lat, lon, alt = reference.to_lla(x, y, z)
-            p[i][0] = lon
-            p[i][1] = lat
-            p[i][2] = alt
-            # logger.info("local[{:.4f} {:.4f} {:.4f}] -> lla[{:.8f} {:.8f} {:.8f}]".format(
-            #     x, y, z, lon, lat, alt
-            # ))
 
     points = np.concatenate(points)
     normals = np.concatenate(normals)
@@ -474,6 +508,10 @@ def _point_cloud_to_ply_lines(points, normals, colors, labels, detections):
     template = "{:.8f} {:.8f} {:.8f} {:.3f} {:.3f} {:.3f} {} {} {} {} {}\n"
     for i in range(len(points)):
         p, n, c, l, d = points[i], normals[i], colors[i], labels[i], detections[i]
+        # test_coord = template.format(
+        #     p[0], p[1], p[2], n[0], n[1], n[2],
+        #     int(c[0]), int(c[1]), int(c[2]), int(l), int(d))
+        # logger.info("write:{}".format(test_coord))
         yield template.format(
             p[0], p[1], p[2], n[0], n[1], n[2],
             int(c[0]), int(c[1]), int(c[2]), int(l), int(d))

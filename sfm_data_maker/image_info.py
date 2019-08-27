@@ -106,6 +106,7 @@ class ImageInfo(object):
         if not isinstance(self._sfm_camera, SfMCamera):
             return
         track_point_list = self._track.track_point_list
+        origin_pos_data = []
         for track_point in track_point_list:
             if not isinstance(track_point, TrackPoint):
                 return
@@ -117,6 +118,31 @@ class ImageInfo(object):
             time_stamp = self._track_point_timestamp_map[track_point_id]
 
             sfm_image_name = self._id_track_point_map[track_point_id]
+            #
+            c_matrix = np.matrix([[track_point.coord.x], [track_point.coord.y], [track_point.coord.z]])
+            r_matrix = np.matrix(track_point.R)
+            t_matrix = r_matrix.dot(-c_matrix)
+            #
+            T_json = np.array(t_matrix).reshape(-1, ).tolist()
+            R_list = np.array(r_matrix).reshape(-1, ).tolist()
+            R_json = [
+                [R_list[0], R_list[1], R_list[2]],
+                [R_list[3], R_list[4], R_list[5]],
+                [R_list[6], R_list[7], R_list[8]]
+            ]
+            lla_c = [track_point.coord.x, track_point.coord.y, track_point.coord.z]
+            origin_pos = {
+                sfm_image_name: {
+                    "ang_R": [],
+                    "lla_R": R_json,
+                    "lla_T": T_json,
+                    "lla_C": lla_c,
+                    "utm_R": track_point.R,
+                    "utm_T": track_point.T,
+                    "utm_C": track_point.C
+                }
+            }
+            origin_pos_data.append(origin_pos)
             exif_name = "{}.exif".format(sfm_image_name)
             exif_data = {
                 "width": self._sfm_camera.width,
@@ -140,7 +166,6 @@ class ImageInfo(object):
                 'c': track_point.C
             }
             # test
-
             r_matrix = np.matrix(exif_data['r'])
             R = np.array(r_matrix, dtype=float)
             [x, y, z] = exif_data['c']
@@ -155,6 +180,9 @@ class ImageInfo(object):
             exif_file_path = os.path.join(self._exif_dir, exif_name)
             with open(exif_file_path, "w") as f:
                 json.dump(exif_data, f)
+
+        with open(os.path.join(self._sfm_data_dir, "origin_pos.json"), "w") as f:
+            json.dump(origin_pos_data, f)
 
     def make_photo_info(self):
         photo_data_list = []
