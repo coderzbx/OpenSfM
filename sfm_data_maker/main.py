@@ -17,6 +17,7 @@ if __name__ == '__main__':
     parser.add_argument('--track_dir', type=str, required=True)
     parser.add_argument('--track_id', type=str, required=True)
     parser.add_argument('--reverse_track', type=bool, required=False, default=False)
+    parser.add_argument('--feature_type', type=str, required=False, default="SIFT")
     params = parser.parse_args()
 
     data_set_name = params.data_set
@@ -71,7 +72,8 @@ if __name__ == '__main__':
     print("make exif succeed")
     #
     print("making config.yaml...")
-    config_handler = Config()
+    feature_type = params.feature_type
+    config_handler = Config(feature_type=feature_type)
     yaml_data = config_handler.make_config_yaml()
     config_yaml_path = os.path.join(data_set_dir, "config.yaml")
     with open(config_yaml_path, "w") as f:
