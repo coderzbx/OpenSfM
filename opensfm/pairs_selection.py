@@ -7,7 +7,7 @@ import scipy.spatial as spatial
 
 from opensfm import bow
 from opensfm import context
-
+from opensfm import feature_loader
 
 logger = logging.getLogger(__name__)
 
@@ -51,6 +51,9 @@ def match_candidates_by_distance(images_ref, images_cand, exifs, reference,
         distances, neighbors = tree.query(
             point, k=nn, distance_upper_bound=max_distance)
 
+        if type(neighbors) == int:      # special case with only one NN
+            neighbors = [neighbors]
+
         for j in neighbors:
             if j >= len(images_cand):
                 continue
@@ -86,13 +89,16 @@ def match_candidates_with_bow(data, images_ref, images_cand,
                                                  max_gps_distance)
         preempted_cand = defaultdict(list)
         for p in gps_pairs:
-            preempted_cand[p[0]].append(p[1])
-            preempted_cand[p[1]].append(p[0])
+            if p[0] in images_ref:
+                preempted_cand[p[0]].append(p[1])
+            if p[1] in images_ref:
+                preempted_cand[p[1]].append(p[0])
 
     # reduce sets of images from which to load words (RAM saver)
     need_load = set(preempted_cand.keys())
-    for v in preempted_cand.values():
+    for k, v in preempted_cand.items():
         need_load.update(v)
+        need_load.add(k)
 
     # construct BoW histograms
     logger.info("Computing %d BoW histograms" % len(need_load))
@@ -146,7 +152,11 @@ def match_candidates_by_time(images_ref, images_cand, exifs, max_neighbors):
         nn = k+1 if image_ref in images_cand else k
 
         time = exifs[image_ref]['capture_time']
-        distances, neighbors = tree.query(time, k=nn)
+        distances, neighbors = tree.query([time], k=nn)
+
+        if type(neighbors) == int:      # special case with only one NN
+            neighbors = [neighbors]
+
         for j in neighbors:
             if j >= len(images_cand):
                 continue
@@ -169,7 +179,7 @@ def match_candidates_by_order(images_ref, images_cand, max_neighbors):
         for j in range(a, b):
             image_cand = images_cand[j]
             if image_ref != image_cand:
-                pairs.add(tuple(sorted((image_ref, image_cand))))
+                pairs.add(tuple(sorted([image_ref, image_cand])))
     return pairs
 
 
@@ -255,19 +265,13 @@ def load_histograms(data, images):
     histograms = {}
     bows = bow.load_bows(data.config)
     for im in images:
-        words = data.load_words(im)
-        if words is None:
-            logger.error("Could not load words for image {}".format(im))
-            continue
-
-        mask = data.load_masks(data, im) if hasattr(data, 'load_masks') else None
-        filtered_words = words[mask] if mask else words
+        filtered_words = feature_loader.instance.load_words(data, im, masked=True)
         if len(filtered_words) <= min_num_feature:
             logger.warning("Too few filtered features in image {}: {}".format(
                 im, len(filtered_words)))
             continue
 
-        histograms[im] = bows.histogram(words[:, 0])
+        histograms[im] = bows.histogram(filtered_words[:, 0])
     return histograms
 
 

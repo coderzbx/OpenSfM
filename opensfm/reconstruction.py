@@ -16,6 +16,7 @@ from timeit import default_timer as timer
 from six import iteritems
 
 from opensfm import csfm
+from opensfm import align
 from opensfm import geo
 from opensfm import log
 from opensfm import tracking
@@ -184,6 +185,17 @@ def bundle(graph, reconstruction, gcp, config):
 
     if config['bundle_use_gcp'] and gcp:
         _add_gcp_to_bundle(ba, gcp, reconstruction.shots)
+
+    align_method = config['align_method']
+    if align_method == 'auto':
+        align_method = align.detect_alignment_constraints(config, reconstruction, gcp)
+    if align_method == 'orientation_prior':
+        if config['align_orientation_prior'] == 'vertical':
+            for shot_id in reconstruction.shots:
+                ba.add_absolute_up_vector(shot_id, [0, 0, -1], 1e-3)
+        if config['align_orientation_prior'] == 'horizontal':
+            for shot_id in reconstruction.shots:
+                ba.add_absolute_up_vector(shot_id, [0, 1, 0], 1e-3)
 
     ba.set_point_projection_loss_function(config['loss_function'],
                                           config['loss_function_threshold'])
@@ -371,7 +383,7 @@ def bundle_local(graph, reconstruction, gcp, central_shot_id, config):
         'num_other_images': (len(reconstruction.shots)
                              - len(interior) - len(boundary)),
     }
-    return report
+    return point_ids, report
 
 
 def shot_neighborhood(graph, reconstruction, central_shot_id, radius,
@@ -689,6 +701,7 @@ def bootstrap_reconstruction(data, graph, im1, im2, p1, p2):
     logger.info("==================================")
     logger.info("Two-view reconstruction inliers: {} / {}".format(
         len(inliers), len(p1)))
+
     if len(inliers) <= 5:
         report['decision'] = "Could not find initial motion"
         logger.info(report['decision'])
@@ -802,6 +815,7 @@ def resect(graph, graph_inliers, reconstruction, shot_id,
 
     T = multiview.absolute_pose_ransac(
         bs, Xs, b"KNEIP", 1 - np.cos(threshold), 1000, 0.999)
+
     R = T[:, :3]
     t = T[:, 3]
     logger.info("ransanc pose: R:{}, T:{}".format(R, t))
@@ -1115,14 +1129,19 @@ def get_actual_threshold(config, points):
         return 1.0
 
 
-def remove_outliers(graph, reconstruction, config):
-    """Remove points with large reprojection error."""
+def remove_outliers(graph, reconstruction, config, points=None):
+    """Remove points with large reprojection error.
+
+    A list of point ids to be processed can be given in ``points``.
+    """
+    if points is None:
+        points = reconstruction.points
     threshold = get_actual_threshold(config, reconstruction.points)
     outliers = []
-    for track in reconstruction.points:
-        for shot_id, error in reconstruction.points[track].reprojection_errors.items():
+    for point_id in points:
+        for shot_id, error in reconstruction.points[point_id].reprojection_errors.items():
             if np.linalg.norm(error) > threshold:
-                outliers.append((track, shot_id))
+                outliers.append((point_id, shot_id))
 
     for track, shot_id in outliers:
         del reconstruction.points[track].reprojection_errors[shot_id]
@@ -1267,9 +1286,9 @@ def grow_reconstruction(data, graph, graph_inliers, reconstruction, images, gcp)
     config = data.config
     report = {'steps': []}
 
+    align_reconstruction(reconstruction, gcp, config)
     bundle(graph, reconstruction, None, config)
     remove_outliers(graph_inliers, reconstruction, config)
-    align_reconstruction(reconstruction, gcp, config)
 
     should_bundle = ShouldBundle(data, reconstruction)
     should_retriangulate = ShouldRetriangulate(data, reconstruction)
@@ -1315,25 +1334,27 @@ def grow_reconstruction(data, graph, graph_inliers, reconstruction, images, gcp)
 
             if should_retriangulate.should():
                 logger.info("Re-triangulating")
+                align_reconstruction(reconstruction, gcp, config)
                 b1rep = bundle(graph_inliers, reconstruction, None, config)
                 rrep = retriangulate(graph, graph_inliers, reconstruction, config)
                 b2rep = bundle(graph_inliers, reconstruction, None, config)
                 remove_outliers(graph_inliers, reconstruction, config)
-                align_reconstruction(reconstruction, gcp, config)
                 step['bundle'] = b1rep
                 step['retriangulation'] = rrep
                 step['bundle_after_retriangulation'] = b2rep
                 should_retriangulate.done()
                 should_bundle.done()
             elif should_bundle.should():
+                align_reconstruction(reconstruction, gcp, config)
                 brep = bundle(graph_inliers, reconstruction, None, config)
                 remove_outliers(graph_inliers, reconstruction, config)
-                align_reconstruction(reconstruction, gcp, config)
                 step['bundle'] = brep
                 should_bundle.done()
             elif config['local_bundle_radius'] > 0:
-                brep = bundle_local(graph_inliers, reconstruction, None, image, config)
-                remove_outliers(graph_inliers, reconstruction, config)
+                bundled_points, brep = bundle_local(
+                    graph_inliers, reconstruction, None, image, config)
+                remove_outliers(
+                    graph_inliers, reconstruction, config, bundled_points)
                 step['local_bundle'] = brep
 
             break
@@ -1343,9 +1364,10 @@ def grow_reconstruction(data, graph, graph_inliers, reconstruction, images, gcp)
 
     logger.info("-------------------------------------------------------")
 
+    align_reconstruction(reconstruction, gcp, config)
     bundle(graph_inliers, reconstruction, gcp, config)
     remove_outliers(graph_inliers, reconstruction, config)
-    align_reconstruction(reconstruction, gcp, config)
+
     paint_reconstruction(data, graph, reconstruction)
     return reconstruction, report
 
@@ -1393,7 +1415,6 @@ def incremental_reconstruction(data, graph):
     common_tracks = tracking.all_common_tracks(graph, tracks)
     reconstructions = []
     pairs = compute_image_pairs(common_tracks, data)
-    logger.info("pair:{}\n".format(pairs))
     chrono.lap('compute_image_pairs')
     report['num_candidate_image_pairs'] = len(pairs)
     report['reconstructions'] = []
