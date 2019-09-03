@@ -263,15 +263,15 @@ def merge_depthmaps(data, reconstruction):
     for shot_id in shot_ids:
         p, n, c, l, d = data.load_pruned_depthmap(shot_id)
         # convert local coordinate to lla
-        # point_count = p.shape[0]
-        # for i in range(point_count):
-        #     x = float(p[i][0])
-        #     y = float(p[i][1])
-        #     z = float(p[i][2])
-        #     lat, lon, alt = reference.to_lla(x, y, z)
-        #     p[i][0] = lon
-        #     p[i][1] = lat
-        #     p[i][2] = alt
+        point_count = p.shape[0]
+        for i in range(point_count):
+            x = float(p[i][0])
+            y = float(p[i][1])
+            z = float(p[i][2])
+            lat, lon, alt = reference.to_lla(x, y, z)
+            p[i][0] = lon
+            p[i][1] = lat
+            p[i][2] = alt
             # logger.info("local[{:.4f} {:.4f} {:.4f}] -> lla[{:.8f} {:.8f} {:.8f}]".format(
             #     x, y, z, lon, lat, alt
             # ))

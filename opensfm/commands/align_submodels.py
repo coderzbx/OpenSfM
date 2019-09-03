@@ -16,4 +16,8 @@ class Command:
             tools.align_reconstructions(reconstruction_shots,
                                         tools.partial_reconstruction_name,
                                         True)
+            # tools.align_reconstructions(reconstruction_shots,
+            #                             tools.partial_reconstruction_name,
+            #                             True,
+            #                             camera_constraint_type='hard_camera_constraint')
         tools.apply_transformations(transformations)

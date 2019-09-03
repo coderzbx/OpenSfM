@@ -69,6 +69,7 @@ if __name__ == '__main__':
     image_info.format_images()
     image_info.make_exif()
     image_info.make_photo_info()
+    image_info.make_mask_images()
     print("make exif succeed")
     #
     print("making config.yaml...")

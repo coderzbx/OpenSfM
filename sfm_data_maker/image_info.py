@@ -4,9 +4,13 @@ import os
 import json
 import shutil
 import numpy as np
+import cv2
+import multiprocessing
+import time
 
 from defines import Track, TrackPoint
 from camera_info import SfMCamera
+from label import self_full_labels
 
 
 class ImageInfo(object):
@@ -18,6 +22,8 @@ class ImageInfo(object):
         self._reverse_track = reverse_track
         self._id_track_point_map = {}
         self._track_point_timestamp_map = {}
+        self._manager = multiprocessing.Manager()
+        self._queue = self._manager.Queue()
 
         self._init = True
         self._src_images_dir = os.path.join(self._track_data_dir, "src")
@@ -46,6 +52,11 @@ class ImageInfo(object):
         if os.path.exists(self._seg_images_dir):
             if not os.path.exists(self._masks_dir):
                 os.makedirs(self._masks_dir)
+
+        self._undistorted_masks_dir = os.path.join(self._sfm_data_dir, "undistorted_masks")
+        if os.path.exists(self._seg_images_dir):
+            if not os.path.exists(self._undistorted_masks_dir):
+                os.makedirs(self._undistorted_masks_dir)
 
         self._segmentations_dir = os.path.join(self._sfm_data_dir, "segmentations")
         if not os.path.exists(self._segmentations_dir):
@@ -210,6 +221,48 @@ class ImageInfo(object):
         with open(photo_file_path, "w") as f:
             json.dump(photo_data_list, f)
 
+    def convert_image_mask(self):
+        while True:
+            if self._queue.empty():
+                break
+            #
+            start = time.time()
+            src_seg_path = self._queue.get()
+            file_name = os.path.basename(src_seg_path)
+            track_point_id = file_name.split(".")[0]
+            sfm_image_name = self._id_track_point_map[track_point_id]
+            mask_name = "{}.png".format(sfm_image_name)
+            mask_path = os.path.join(self._masks_dir, mask_name)
+            undistorted_mask_path = os.path.join(self._undistorted_masks_dir, mask_name)
+            segmentation_path = os.path.join(self._segmentations_dir, mask_name)
+            undistorted_segmentations_path = os.path.join(self._undistorted_segmentations_dir, mask_name)
+            #
+            if os.path.exists(mask_path) and os.path.exists(undistorted_mask_path) and \
+               os.path.exists(segmentation_path) and os.path.exists(undistorted_segmentations_path):
+                print("{} exists".format(mask_name))
+                continue
+            # convert png to id
+            seg_image_mat = cv2.imread(src_seg_path)
+            width = seg_image_mat.shape[1]
+            height = seg_image_mat.shape[0]
+            label_data = np.zeros((height, width), np.uint8)
+            label_data[0:height, 0:width] = 255
+
+            for label in self_full_labels:
+                if label.categoryId != 0:
+                    continue
+                color = (label.color[2], label.color[1], label.color[0])
+                category_id = label.categoryId
+                label_data[np.where((seg_image_mat == color).all(axis=2))] = category_id
+            #
+            cv2.imwrite(mask_path, label_data)
+            cv2.imwrite(undistorted_mask_path, label_data)
+            cv2.imwrite(segmentation_path, label_data)
+            cv2.imwrite(undistorted_segmentations_path, label_data)
+
+            end = time.time()
+            print("Processed {} in {} ms".format(mask_name, str((end - start) * 1000)))
+
     def make_mask_images(self):
         if not os.path.exists(self._masks_dir):
             return
@@ -220,15 +273,16 @@ class ImageInfo(object):
                 continue
 
             src_seg_path = os.path.join(self._seg_images_dir, file_name)
-            track_point_id = file_name.split(".")[0]
-            sfm_image_name = self._id_track_point_map[track_point_id]
-            mask_name = "{}.png".format(sfm_image_name)
-            segmentation_name = "{}.png".format(sfm_image_name)
-            segmentation_path = os.path.join(self._segmentations_dir, segmentation_name)
-            undistorted_segmentations_path = os.path.join(self._undistorted_segmentations_dir, segmentation_name)
-            #
-            shutil.copy(src=src_seg_path, dst=segmentation_path)
-            shutil.copy(src=src_seg_path, dst=undistorted_segmentations_path)
+            self._queue.put(src_seg_path)
 
-            # convert png to id
-            print(mask_name)
+        self_threads = []
+        for i in range(16):
+            t = multiprocessing.Process(target=self.convert_image_mask)
+            t.daemon = True
+            self_threads.append(t)
+
+        for process in self_threads:
+            process.start()
+
+        for process in self_threads:
+            process.join()

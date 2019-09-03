@@ -102,7 +102,9 @@ class Config(object):
             "feature_root": self._feature_root,
             "feature_min_frames": self._feature_min_frames,
             "feature_process_size": self._feature_process_size,
-            "feature_use_adaptive_suppression": self._feature_use_adaptive_suppression
+            "feature_use_adaptive_suppression": self._feature_use_adaptive_suppression,
+            "segmentation_ignore_values": [0],
+            "optimize_camera_parameters": False
         }
         return params_data
 
