@@ -4,6 +4,8 @@
 #include "motion_prior_terms.h"
 #include "relative_motion_terms.h"
 #include "projection_errors.h"
+#include <stdio.h>
+#include <iostream>
 
 BundleAdjuster::BundleAdjuster() {
   SetPointProjectionLossFunction("CauchyLoss", 1.0);
@@ -462,15 +464,19 @@ void BundleAdjuster::Run() {
 
   // Init paramater blocks.
   for (auto &i : shots_) {
+    std::cerr << "=======start to add shot=======" << std::endl;
     if (i.second.constant) {
       problem.AddParameterBlock(i.second.parameters.data(), BA_SHOT_NUM_PARAMS);
       problem.SetParameterBlockConstant(i.second.parameters.data());
+      std::cerr << "----------add shot as constant------------" << std::endl;
     } else {
       problem.AddParameterBlock(i.second.parameters.data(), BA_SHOT_NUM_PARAMS);
+      std::cerr << "..........add shot as variable............" << std::endl;
     }
   }
 
   for (auto &i : cameras_) {
+    std::cerr << "=======start to add camera=======" << std::endl;
     if (i.second->constant) {
       switch (i.second->type()) {
         case BA_PERSPECTIVE_CAMERA: {
@@ -497,18 +503,25 @@ void BundleAdjuster::Run() {
           // No parameters for now
           break;
       }
+      std::cerr << "----------add camera as constant------------" << std::endl;
+      std::cerr << "----------camera type: "<< i.second->type() << "------------" << std::endl;
+    } else {
+      std::cerr << "----------add camera as variable------------" << std::endl;
     }
   }
   for (auto &i : reconstructions_) {
+    std::cerr << "=======start to add reconstruction=======" << std::endl;
     for (auto &s : i.second.scales) {
       if (i.second.constant) {
         problem.AddParameterBlock(&s.second, 1);
         problem.SetParameterBlockConstant(&s.second);
+        std::cerr << "----------add reconstruction as constant------------" << std::endl;
       } else {
         problem.AddParameterBlock(&s.second, 1);
         problem.SetParameterLowerBound(&s.second, 0, 0.0);
         problem.SetParameterUpperBound(&s.second, 0,
                                        std::numeric_limits<double>::max());
+        std::cerr << "----------add reconstruction as variable------------" << std::endl;
       }
     }
   }

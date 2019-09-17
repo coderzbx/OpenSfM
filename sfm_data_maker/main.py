@@ -18,6 +18,7 @@ if __name__ == '__main__':
     parser.add_argument('--track_id', type=str, required=True)
     parser.add_argument('--reverse_track', type=bool, required=False, default=False)
     parser.add_argument('--feature_type', type=str, required=False, default="SIFT")
+    parser.add_argument('--combine', required=False, default=False, action='store_true')
     params = parser.parse_args()
 
     data_set_name = params.data_set
@@ -65,6 +66,7 @@ if __name__ == '__main__':
     track_data_dir = os.path.join(track_dir, track_dir_name)
     image_info = ImageInfo(track=track_handler.track, sfm_camera=track_handler.sfm_camera,
                            track_data_dir=track_data_dir, sfm_data_dir=data_set_dir,
+                           combine_track=params.combine,
                            reverse_track=params.reverse_track)
     image_info.format_images()
     image_info.make_exif()

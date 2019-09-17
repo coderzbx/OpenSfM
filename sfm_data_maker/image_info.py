@@ -8,13 +8,15 @@ import cv2
 import multiprocessing
 import time
 
+# from exif import Image
+
 from defines import Track, TrackPoint
 from camera_info import SfMCamera
 from label import self_full_labels
 
 
 class ImageInfo(object):
-    def __init__(self, track, sfm_camera, track_data_dir, sfm_data_dir, reverse_track=False):
+    def __init__(self, track, sfm_camera, track_data_dir, sfm_data_dir, combine_track=False, reverse_track=False):
         self._track = track
         self._sfm_camera = sfm_camera
         self._track_data_dir = track_data_dir
@@ -24,6 +26,7 @@ class ImageInfo(object):
         self._track_point_timestamp_map = {}
         self._manager = multiprocessing.Manager()
         self._queue = self._manager.Queue()
+        self._combine_track = combine_track
 
         self._init = True
         self._src_images_dir = os.path.join(self._track_data_dir, "src")
@@ -39,6 +42,10 @@ class ImageInfo(object):
         self._images_dir = os.path.join(self._sfm_data_dir, "images")
         if not os.path.exists(self._images_dir):
             os.makedirs(self._images_dir)
+
+        self._exif_images_dir = os.path.join(self._sfm_data_dir, "exif_images")
+        if not os.path.exists(self._exif_images_dir):
+            os.makedirs(self._exif_images_dir)
 
         self._undistorted_dir = os.path.join(self._sfm_data_dir, "undistorted")
         if not os.path.exists(self._undistorted_dir):
@@ -94,21 +101,61 @@ class ImageInfo(object):
         #
         image_index = 0
         for image_name in src_image_list:
+            track_point_id = image_name.split(".")[0]
             src_image_path = os.path.join(self._src_images_dir, image_name)
             #
             image_index += 1
             str_index = str(image_index).zfill(4)
             sfm_image_name = "{}.jpg".format(str_index)
+            if self._combine_track:
+                sfm_image_name = image_name
             sfm_image_path = os.path.join(self._images_dir, sfm_image_name)
             undistorted_image_name = "{}.jpg".format(sfm_image_name)
             undistorted_image_path = os.path.join(self._undistorted_dir, undistorted_image_name)
             images_resize_path = os.path.join(self._images_resize_dir, sfm_image_name)
+            # add exif to image
+            # with open(src_image_path, 'rb') as fr:
+            #     exif_image = Image(fr)
+            #     print("{} has exif? {}".format(src_image_path, exif_image.has_exif))
+            #     for track_point in self._track.track_point_list:
+            #         if not isinstance(track_point, TrackPoint):
+            #             return
+            #         if track_point_id == track_point.track_point_id:
+            #             exif_image.set("model", "pointgrey")
+            #             exif_image.set("orientation", 1)
+            #             exif_image.set("make", "kuandeng")
+            #             exif_image.set("projection_type", "perspective")
+            #             exif_image.set("height", 2048)
+            #             exif_image.set("width", 2448)
+            #             exif_image.set("ImageHeight", 2048)
+            #             exif_image.set("ImageWidth", 2448)
+            #
+            #             exif_image.set("gps_longitude_ref", "East")
+            #             exif_image.set("gps_latitude_ref", "North")
+            #             logitude = track_point.coord.x
+            #             degree = int(logitude)
+            #             minitue = int((logitude - degree) * 60)
+            #             second = logitude * 3600 - degree * 3600 - minitue * 60
+            #             exif_image.gps_longitude = (degree, minitue, second)
+            #             #
+            #             latitude = track_point.coord.y
+            #             degree = int(latitude)
+            #             minitue = int((latitude - degree) * 60)
+            #             second = latitude * 3600 - degree * 3600 - minitue * 60
+            #             #
+            #             exif_image.gps_latitude = (degree, minitue, second)
+            #             exif_image.gps_altitude = track_point.coord.z
+            #             break
+            #
+            #     exif_image_path = os.path.join(self._exif_images_dir, image_name)
+            #     with open(exif_image_path, "wb") as fw:
+            #         fw.write(exif_image.get_file())
+
             # copy
             shutil.copy(src=src_image_path, dst=sfm_image_path)
             shutil.copy(src=src_image_path, dst=undistorted_image_path)
             shutil.copy(src=src_image_path, dst=images_resize_path)
             #
-            track_point_id = image_name.split(".")[0]
             self._id_track_point_map[track_point_id] = sfm_image_name
 
     def make_exif(self):
@@ -168,7 +215,7 @@ class ImageInfo(object):
                     "latitude": track_point.coord.y,
                     "longitude": track_point.coord.x,
                     "altitude": track_point.coord.z,
-                    "dop": 10.0,
+                    "dop": 20.0,
                 },
                 # ms->s
                 "capture_time": time_stamp / 1000,
