@@ -489,7 +489,6 @@ def point_cloud_to_ply(points, normals, colors, labels, detections, fp):
     logger.info("Write depthmaps into file, point count:{}".format(len(points)))
     lines = _point_cloud_to_ply_lines(points, normals, colors, labels, detections)
     fp.writelines(lines)
-    logger.info("Finish writing depthmaps into file, line count:{}".format(len(lines)))
 
 
 def _point_cloud_to_ply_lines(points, normals, colors, labels, detections):
