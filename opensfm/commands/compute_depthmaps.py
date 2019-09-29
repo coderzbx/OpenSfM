@@ -20,7 +20,7 @@ class Command:
         data = dataset.DataSet(args.dataset)
         #
         data.config['interactive'] = args.interactive
-        reconstructions = data.load_undistorted_reconstruction()
-        graph = data.load_undistorted_tracks_graph()
+        reconstructions = data.load_reconstruction()
+        graph = data.load_tracks_graph()
 
         dense.compute_depthmaps(data, graph, reconstructions[0])

@@ -126,7 +126,7 @@ class DepthmapPrunerWrapper {
   py::object Prune() {
     py::gil_scoped_release release;
 
-    std::vector<float> points;
+    std::vector<double> points;
     std::vector<float> normals;
     std::vector<unsigned char> colors;
     std::vector<unsigned char> labels;

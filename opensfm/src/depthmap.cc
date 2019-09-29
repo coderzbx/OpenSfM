@@ -559,7 +559,7 @@ void DepthmapPruner::AddView(const double *pK, const double *pR,
   detections_.emplace_back(cv::Mat(height, width, CV_8U, (void *)pdetection).clone());
 }
 
-void DepthmapPruner::Prune(std::vector<float> *merged_points,
+void DepthmapPruner::Prune(std::vector<double> *merged_points,
                            std::vector<float> *merged_normals,
                            std::vector<unsigned char> *merged_colors,
                            std::vector<unsigned char> *merged_labels,
@@ -573,7 +573,7 @@ void DepthmapPruner::Prune(std::vector<float> *merged_points,
       }
       cv::Vec3f normal = cv::normalize(planes_[0].at<cv::Vec3f>(i, j));
       float area = -normal(2) / depth * Ks_[0](0, 0);
-      cv::Vec3f point = Backproject(j, i, depth, Ks_[0], Rs_[0], ts_[0]);
+      cv::Vec3d point = Backproject(j, i, depth, Ks_[0], Rs_[0], ts_[0]);
       bool keep = true;
       for (int other = 1; other < depths_.size(); ++other) {
         cv::Vec3d reprojection = Project(point, Ks_[other], Rs_[other], ts_[other]);

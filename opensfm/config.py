@@ -158,6 +158,10 @@ submodel_overlap: 30.0                                               # Radius of
 submodels_relpath: "submodels"                                       # Relative path to the submodels directory
 submodel_relpath_template: "submodels/submodel_%04d"                 # Template to generate the relative path to a submodel directory
 submodel_images_relpath_template: "submodels/submodel_%04d/images"   # Template to generate the relative path to a submodel images directory
+
+#pose fix
+output_pose_log: no
+pose_fix_type: 0
 '''
 
 

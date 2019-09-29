@@ -27,6 +27,8 @@ from opensfm.context import parallel_map, current_memory_usage
 
 
 logger = logging.getLogger(__name__)
+output_pose_log = False
+pose_fix_type = 0 #0:fix all pose, 1:fix pose which status double 1, 2:fix pose which gps status is 1
 
 
 def _add_camera_to_bundle(ba, camera, constant):
@@ -163,7 +165,24 @@ def bundle(graph, reconstruction, gcp, config):
     for shot in reconstruction.shots.values():
         r = shot.pose.rotation
         t = shot.pose.translation
-        ba.add_shot(shot.id, shot.camera.id, r, t, False)
+        # ---
+        # modify by kd
+        # ba.add_shot(shot.id, shot.camera.id, r, t, False)
+        ba.add_shot(shot.id, shot.camera.id, r, t, True)
+        # ---
+        #
+        if output_pose_log:
+            gps_position = real_gps = shot.pose.get_origin()
+            r_matrix = shot.pose.get_rotation_matrix()
+            if shot.metadata.reference is not None:
+                reference = shot.metadata.reference
+                [x, y, z] = shot.pose.get_origin()
+                reference.to_lla(x, y, z)
+                real_gps = [reference.lon, reference.lat, reference.alt]
+            logger.info("[check pos] bundle, line165, image: {}, r:{}, t:{}, C:{}, GPS:{}, R:{}, T:{}".format(
+                shot.id, shot.pose.rotation, shot.pose.translation,
+                gps_position, real_gps, r_matrix, t
+            ))
 
     for point in reconstruction.points.values():
         ba.add_point(point.id, point.coordinates, False)
@@ -219,9 +238,17 @@ def bundle(graph, reconstruction, gcp, config):
         _get_camera_from_bundle(ba, camera)
 
     for shot in reconstruction.shots.values():
+        if output_pose_log:
+            logger.info("[check pos] before bundle, line248, image: {}, r:{}, t:{}".format(
+                shot.id, shot.pose.rotation, shot.pose.translation
+            ))
         s = ba.get_shot(shot.id)
         shot.pose.rotation = [s.r[0], s.r[1], s.r[2]]
         shot.pose.translation = [s.t[0], s.t[1], s.t[2]]
+        if output_pose_log:
+            logger.info("[check pos] after bundle, line254, image: {}, r:{}, t:{}".format(
+                shot.id, shot.pose.rotation, shot.pose.translation
+            ))
 
     for point in reconstruction.points.values():
         p = ba.get_point(point.id)
@@ -248,7 +275,24 @@ def bundle_single_view(graph, reconstruction, shot_id, config):
 
     r = shot.pose.rotation
     t = shot.pose.translation
-    ba.add_shot(shot.id, camera.id, r, t, False)
+    # ---
+    # modify by kd
+    # ba.add_shot(shot.id, camera.id, r, t, False)
+    ba.add_shot(shot.id, camera.id, r, t, True)
+    # ---
+    #
+    if output_pose_log:
+        gps_position = real_gps = shot.pose.get_origin()
+        r_matrix = shot.pose.get_rotation_matrix()
+        if shot.metadata.reference is not None:
+            reference = shot.metadata.reference
+            [x, y, z] = shot.pose.get_origin()
+            reference.to_lla(x, y, z)
+            real_gps = [reference.lon, reference.lat, reference.alt]
+        logger.info("[check pos] bundle_single_view, line261, image: {}, r:{}, t:{}, C:{}, GPS:{}, R:{}, T:{}".format(
+            shot.id, shot.pose.rotation, shot.pose.translation,
+            gps_position, real_gps, r_matrix, t
+        ))
 
     for track_id in graph[shot_id]:
         track = reconstruction.points[track_id]
@@ -281,9 +325,17 @@ def bundle_single_view(graph, reconstruction, shot_id, config):
 
     logger.debug(ba.brief_report())
 
+    if output_pose_log:
+        logger.info("[check pos] before bundle single view, line348, image: {}, r:{}, t:{}".format(
+            shot.id, shot.pose.rotation, shot.pose.translation
+        ))
     s = ba.get_shot(shot_id)
     shot.pose.rotation = [s.r[0], s.r[1], s.r[2]]
     shot.pose.translation = [s.t[0], s.t[1], s.t[2]]
+    if output_pose_log:
+        logger.info("[check pos] after bundle single view, line352, image: {}, r:{}, t:{}".format(
+            shot.id, shot.pose.rotation, shot.pose.translation
+        ))
 
 
 def bundle_local(graph, reconstruction, gcp, central_shot_id, config):
@@ -317,7 +369,24 @@ def bundle_local(graph, reconstruction, gcp, central_shot_id, config):
         shot = reconstruction.shots[shot_id]
         r = shot.pose.rotation
         t = shot.pose.translation
-        ba.add_shot(shot.id, shot.camera.id, r, t, shot.id in boundary)
+        # ---
+        # modify by kd
+        # ba.add_shot(shot.id, shot.camera.id, r, t, shot.id in boundary)
+        ba.add_shot(shot.id, shot.camera.id, r, t, True)
+        # ---
+        #
+        if output_pose_log:
+            gps_position = real_gps = shot.pose.get_origin()
+            r_matrix = shot.pose.get_rotation_matrix()
+            if shot.metadata.reference is not None:
+                reference = shot.metadata.reference
+                [x, y, z] = shot.pose.get_origin()
+                reference.to_lla(x, y, z)
+                real_gps = [reference.lon, reference.lat, reference.alt]
+            logger.info("[check pos] bundle_local, line330, image: {}, r:{}, t:{}, C:{}, GPS:{}, R:{}, T:{}".format(
+                shot.id, shot.pose.rotation, shot.pose.translation,
+                gps_position, real_gps, r_matrix, t
+            ))
 
     for point_id in point_ids:
         point = reconstruction.points[point_id]
@@ -362,9 +431,17 @@ def bundle_local(graph, reconstruction, gcp, central_shot_id, config):
 
     for shot_id in interior:
         shot = reconstruction.shots[shot_id]
+        if output_pose_log:
+            logger.info("[check pos] before bundle local, line460, image: {}, r:{}, t:{}".format(
+                shot.id, shot.pose.rotation, shot.pose.translation
+            ))
         s = ba.get_shot(shot.id)
         shot.pose.rotation = [s.r[0], s.r[1], s.r[2]]
         shot.pose.translation = [s.t[0], s.t[1], s.t[2]]
+        if output_pose_log:
+            logger.info("[check pos] after bundle local, line466, image: {}, r:{}, t:{}".format(
+                shot.id, shot.pose.rotation, shot.pose.translation
+            ))
 
     for point in point_ids:
         point = reconstruction.points[point]
@@ -484,8 +561,7 @@ def get_image_metadata(data, image):
     """Get image metadata as a ShotMetadata object."""
     metadata = types.ShotMetadata()
     exif = data.load_exif(image)
-    reference = data.load_reference()
-    metadata.reference = reference
+    metadata.reference = None
     if ('gps' in exif and
             'latitude' in exif['gps'] and
             'longitude' in exif['gps']):
@@ -495,7 +571,11 @@ def get_image_metadata(data, image):
             alt = exif['gps'].get('altitude', 2.0)
         else:
             alt = 2.0  # Arbitrary value used to align the reconstruction
-        x, y, z = reference.to_topocentric(lat, lon, alt)
+        x, y, z = [lon, lat, alt]
+        if data.reference_lla_exists():
+            reference = data.load_reference()
+            metadata.reference = reference
+            x, y, z = reference.to_topocentric(lat, lon, alt)
         metadata.gps_position = [x, y, z]
         metadata.gps_dop = exif['gps'].get('dop', 15.0)
     if 'r' in exif and 't' in exif and 'c' in exif:
@@ -698,7 +778,6 @@ def bootstrap_reconstruction(data, graph, im1, im2, p1, p2):
     min_inliers = data.config['five_point_algo_min_inliers']
     R, t, inliers, report['two_view_reconstruction'] = \
         two_view_reconstruction_general(p1, p2, camera1, camera2, threshold)
-    logger.info("==================================")
     logger.info("Two-view reconstruction inliers: {} / {}".format(
         len(inliers), len(p1)))
 
@@ -707,50 +786,47 @@ def bootstrap_reconstruction(data, graph, im1, im2, p1, p2):
         logger.info(report['decision'])
         return None, None, report
 
-    logger.info("two_view_reconstruction_general, R:{}, T:{}".format(R, t))
-
     reconstruction = types.Reconstruction()
-    reconstruction.reference = data.load_reference()
+    reconstruction.reference = None
+    if data.reference_lla_exists():
+        reconstruction.reference = data.load_reference()
     reconstruction.cameras = cameras
 
     shot1 = types.Shot()
     shot1.id = im1
     shot1.camera = camera1
     shot1.metadata = get_image_metadata(data, im1)
-    #
-    reference = data.load_reference()
-    [x, y, z] = shot1.metadata.gps_position
-    reference.to_lla(x, y, z)
-    real_gps = [reference.lon, reference.lat, reference.alt]
-    logger.info("bootstrap reconstruction, image1: {}, R:{}, T:{}, C:{}, GPS:{}".format(
-        im1, shot1.metadata.r_matrix, shot1.metadata.t_matrix, shot1.metadata.gps_position, real_gps
-    ))
     # convert RT in lla to RT din xyz coordinate
     r_matrix = shot1.metadata.r_matrix
     shot1.pose = types.Pose()
     shot1.pose.set_rotation_matrix(r_matrix, permissive=True)
     shot1.pose.set_origin(shot1.metadata.gps_position)
-    # logger.info("image1, origin:{}, gps_location:{}".format(shot1.metadata.gps_position, shot1.metadata.gps_position))
     reconstruction.add_shot(shot1)
+    #
+    if output_pose_log:
+        [x, y, z] = shot1.metadata.gps_position
+        real_gps = [x, y, z]
+        if data.reference_lla_exists():
+            reference = data.load_reference()
+            reference.to_lla(x, y, z)
+            real_gps = [reference.lon, reference.lat, reference.alt]
+        c_r = shot1.pose.get_rotation_matrix()
+        logger.info(
+            "[check pos] bootstrap reconstruction, line798, image1: {}, r:{}, t:{}, C:{}, GPS:{}, R:{}, CR:{}, T:{}".format(
+                im1, shot1.pose.rotation, shot1.pose.translation,
+                shot1.metadata.gps_position, real_gps, shot1.metadata.r_matrix, c_r, shot1.metadata.t_matrix
+            ))
 
     shot2 = types.Shot()
     shot2.id = im2
     shot2.camera = camera2
     shot2.metadata = get_image_metadata(data, im2)
     #
-    [x, y, z] = shot2.metadata.gps_position
-    reference.to_lla(x, y, z)
-    real_gps = [reference.lon, reference.lat, reference.alt]
-    logger.info("bootstrap reconstruction, image2: {}, R:{}, T:{}, C:{}, GPS:{}".format(
-        im2, shot2.metadata.r_matrix, shot2.metadata.t_matrix, shot2.metadata.gps_position, real_gps
-    ))
-    #
     r_matrix = shot2.metadata.r_matrix
     shot2.pose = types.Pose()
     # origin = shot2.pose.get_origin()
     shot2.pose.set_rotation_matrix(r_matrix, permissive=True)
     shot2.pose.set_origin(shot2.metadata.gps_position)
-    # logger.info("image2, origin:{}, gps_location:{}".format(origin, shot1.metadata.gps_position))
     reconstruction.add_shot(shot2)
     logger.info("==================================")
 
@@ -818,8 +894,6 @@ def resect(graph, graph_inliers, reconstruction, shot_id,
 
     R = T[:, :3]
     t = T[:, 3]
-    logger.info("ransanc pose: R:{}, T:{}".format(R, t))
-
     reprojected_bs = R.T.dot((Xs - t).T).T
     reprojected_bs /= np.linalg.norm(reprojected_bs, axis=1)[:, np.newaxis]
 
@@ -833,11 +907,11 @@ def resect(graph, graph_inliers, reconstruction, shot_id,
         'num_inliers': ninliers,
     }
     if ninliers >= min_inliers:
-        # R = T[:, :3].T
-        # t = -R.dot(T[:, 3])
         shot = types.Shot()
         shot.id = shot_id
         shot.camera = camera
+        # R = T[:, :3].T
+        # t = -R.dot(T[:, 3])
         # shot.pose = types.Pose()
         # shot.pose.set_rotation_matrix(R)
         # shot.pose.translation = t
@@ -848,13 +922,18 @@ def resect(graph, graph_inliers, reconstruction, shot_id,
         shot.metadata = metadata
         reconstruction.add_shot(shot)
         #
-        # reference = metadata.reference
-        # [x, y, z] = metadata.gps_position
-        # reference.to_lla(x, y, z)
-        # real_gps = [reference.lon, reference.lat, reference.alt]
-        # logger.info("grow reconstruction, image: {}, R:{}, T:{}, C:{}, GPS:{}".format(
-        #     shot_id, metadata.r_matrix, metadata.t_matrix, metadata.gps_position, real_gps
-        # ))
+        if output_pose_log:
+            reference = metadata.reference
+            real_gps = metadata.gps_position
+            if reference is not None:
+                [x, y, z] = metadata.gps_position
+                reference.to_lla(x, y, z)
+                real_gps = [reference.lon, reference.lat, reference.alt]
+            logger.info(
+                "[check pos] grow reconstruction, line972, image: {}, r:{}, t:{}, C:{}, GPS:{}, R:{}, T:{}".format(
+                    shot_id, shot.pose.rotation, shot.pose.translation,
+                    metadata.gps_position, real_gps, metadata.r_matrix, metadata.t_matrix
+                ))
         #
         for i, succeed in enumerate(inliers):
             if succeed:
@@ -1285,9 +1364,53 @@ def grow_reconstruction(data, graph, graph_inliers, reconstruction, images, gcp)
     """Incrementally add shots to an initial reconstruction."""
     config = data.config
     report = {'steps': []}
-
+    '''
+    #
+    for shot_id in reconstruction.shots:
+        shot = reconstruction.shots[shot_id]
+        [x, y, z] = shot.metadata.gps_position
+        real_gps = [x, y, z]
+        if data.reference_lla_exists():
+            reference = data.load_reference()
+            reference.to_lla(x, y, z)
+            real_gps = [reference.lon, reference.lat, reference.alt]
+        logger.info("[check pos] before1 align reconstruction, line1425, image: {}, r:{}, t:{}, C:{}, GPS:{}, R:{}, T:{}".format(
+            shot.id, shot.pose.rotation, shot.pose.translation,
+            shot.metadata.gps_position, real_gps, shot.metadata.r_matrix, shot.metadata.t_matrix
+        ))
+    # ---delete by kd
     align_reconstruction(reconstruction, gcp, config)
+    # ---delete by kd
+    for shot_id in reconstruction.shots:
+        shot = reconstruction.shots[shot_id]
+        [x, y, z] = shot.metadata.gps_position
+        real_gps = [x, y, z]
+        if data.reference_lla_exists():
+            reference = data.load_reference()
+            reference.to_lla(x, y, z)
+            real_gps = [reference.lon, reference.lat, reference.alt]
+        logger.info("[check pos] after1 align reconstruction, line1437, image: {}, r:{}, t:{}, C:{}, GPS:{}, R:{}, T:{}".format(
+            shot.id, shot.pose.rotation, shot.pose.translation,
+            shot.metadata.gps_position, real_gps, shot.metadata.r_matrix, shot.metadata.t_matrix
+        ))
+    # ---
+    '''
+    # delete by kd
     bundle(graph, reconstruction, None, config)
+    #
+    for shot_id in reconstruction.shots:
+        shot = reconstruction.shots[shot_id]
+        [x, y, z] = shot.metadata.gps_position
+        real_gps = [x, y, z]
+        if data.reference_lla_exists():
+            reference = data.load_reference()
+            reference.to_lla(x, y, z)
+            real_gps = [reference.lon, reference.lat, reference.alt]
+        logger.info("[check pos] after1 bundle, line1450, image: {}, r:{}, t:{}, C:{}, GPS:{}, R:{}, T:{}".format(
+            shot.id, shot.pose.rotation, shot.pose.translation,
+            shot.metadata.gps_position, real_gps, shot.metadata.r_matrix, shot.metadata.t_matrix
+        ))
+    #
     remove_outliers(graph_inliers, reconstruction, config)
 
     should_bundle = ShouldBundle(data, reconstruction)
@@ -1334,7 +1457,8 @@ def grow_reconstruction(data, graph, graph_inliers, reconstruction, images, gcp)
 
             if should_retriangulate.should():
                 logger.info("Re-triangulating")
-                align_reconstruction(reconstruction, gcp, config)
+                # ---delete by kd
+                # align_reconstruction(reconstruction, gcp, config)
                 b1rep = bundle(graph_inliers, reconstruction, None, config)
                 rrep = retriangulate(graph, graph_inliers, reconstruction, config)
                 b2rep = bundle(graph_inliers, reconstruction, None, config)
@@ -1345,7 +1469,8 @@ def grow_reconstruction(data, graph, graph_inliers, reconstruction, images, gcp)
                 should_retriangulate.done()
                 should_bundle.done()
             elif should_bundle.should():
-                align_reconstruction(reconstruction, gcp, config)
+                # ---delete by kd
+                # align_reconstruction(reconstruction, gcp, config)
                 brep = bundle(graph_inliers, reconstruction, None, config)
                 remove_outliers(graph_inliers, reconstruction, config)
                 step['bundle'] = brep
@@ -1364,9 +1489,69 @@ def grow_reconstruction(data, graph, graph_inliers, reconstruction, images, gcp)
 
     logger.info("-------------------------------------------------------")
 
+    '''
+    #
+    for shot_id in reconstruction.shots:
+        shot = reconstruction.shots[shot_id]
+        real_gps = [x, y, z]
+        if data.reference_lla_exists():
+            reference = data.load_reference()
+            reference.to_lla(x, y, z)
+            real_gps = [reference.lon, reference.lat, reference.alt]
+        logger.info("[check pos] before2 align reconstruction, line1538, image: {}, r:{}, t:{}, C:{}, GPS:{}, R:{}, T:{}".format(
+            shot.id, shot.pose.rotation, shot.pose.translation,
+            shot.metadata.gps_position, real_gps, shot.metadata.r_matrix, shot.metadata.t_matrix
+        ))
+    # --- delete by kd
     align_reconstruction(reconstruction, gcp, config)
+    # ---
+    for shot_id in reconstruction.shots:
+        shot = reconstruction.shots[shot_id]
+        real_gps = [x, y, z]
+        if data.reference_lla_exists():
+            reference = data.load_reference()
+            reference.to_lla(x, y, z)
+            real_gps = [reference.lon, reference.lat, reference.alt]
+        logger.info("[check pos] after2 align reconstruction, line1551, image: {}, r:{}, t:{}, C:{}, GPS:{}, R:{}, T:{}".format(
+            shot.id, shot.pose.rotation, shot.pose.translation,
+            shot.metadata.gps_position, real_gps, shot.metadata.r_matrix, shot.metadata.t_matrix
+        ))
+    '''
+    # ---
+    # delete by kd
     bundle(graph_inliers, reconstruction, gcp, config)
+    # ---
+    #
+    if output_pose_log:
+        for shot_id in reconstruction.shots:
+            shot = reconstruction.shots[shot_id]
+            real_gps = [x, y, z]
+            if data.reference_lla_exists():
+                reference = data.load_reference()
+                reference.to_lla(x, y, z)
+                real_gps = [reference.lon, reference.lat, reference.alt]
+            logger.info("[check pos] after2 bundle, line1564, image: {}, r:{}, t:{}, C:{}, GPS:{}, R:{}, T:{}".format(
+                shot.id, shot.pose.rotation, shot.pose.translation,
+                shot.metadata.gps_position, real_gps, shot.metadata.r_matrix, shot.metadata.t_matrix
+            ))
+    #
     remove_outliers(graph_inliers, reconstruction, config)
+    #
+    if output_pose_log:
+        for shot_id in reconstruction.shots:
+            shot = reconstruction.shots[shot_id]
+            [x, y, z] = shot.metadata.gps_position
+            real_gps = [x, y, z]
+            if data.reference_lla_exists():
+                reference = data.load_reference()
+                reference.to_lla(x, y, z)
+                real_gps = [reference.lon, reference.lat, reference.alt]
+            logger.info(
+                "[check pos] after grow reconstruction, line1577, image: {}, r:{}, t:{}, R:{}, T:{}, C:{}, GPS:{}".format(
+                    shot.id, shot.pose.rotation, shot.pose.translation,
+                    shot.metadata.r_matrix, shot.metadata.t_matrix, shot.metadata.gps_position, real_gps
+                ))
+    #
 
     paint_reconstruction(data, graph, reconstruction)
     return reconstruction, report
@@ -1407,8 +1592,8 @@ def incremental_reconstruction(data, graph):
     tracks, images = tracking.tracks_and_images(graph)
     chrono.lap('load_tracks_graph')
 
-    if not data.reference_lla_exists():
-        data.invent_reference_lla(images)
+    # if not data.reference_lla_exists():
+    #     data.invent_reference_lla(images)
 
     remaining_images = set(images)
     gcp = data.load_ground_control_points()
