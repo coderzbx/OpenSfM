@@ -177,7 +177,7 @@ class ImageInfo(object):
 
             sfm_image_name = self._id_track_point_map[track_point_id]
             #
-            c_matrix = np.matrix([[track_point.coord.x], [track_point.coord.y], [track_point.coord.z]])
+            c_matrix = np.matrix([[track_point.utm_coord.x], [track_point.utm_coord.y], [track_point.utm_coord.z]])
             r_matrix = np.matrix(track_point.R)
             t_matrix = r_matrix.dot(-c_matrix)
             #
@@ -212,16 +212,18 @@ class ImageInfo(object):
                 "make": self._sfm_camera.maker,
                 "model": self._sfm_camera.model,
                 "gps": {
-                    "latitude": track_point.coord.y,
-                    "longitude": track_point.coord.x,
-                    "altitude": track_point.coord.z,
+                    "latitude": track_point.utm_coord.y,
+                    "longitude": track_point.utm_coord.x,
+                    "altitude": track_point.utm_coord.z,
                     "dop": 20.0,
                 },
                 # ms->s
                 "capture_time": time_stamp / 1000,
-                'r': track_point.R,
-                't': track_point.T,
-                'c': track_point.C
+                "gps_status": 1,
+                "imu_status": 1,
+                "r": track_point.R,
+                "t": track_point.T,
+                "c": track_point.C
             }
             # test
             r_matrix = np.matrix(exif_data['r'])
@@ -257,9 +259,9 @@ class ImageInfo(object):
             sfm_image_path = "/odm_data/images/" + sfm_image_name
             photo_data = {
                 "filename": sfm_image_path,
-                "latitude": track_point.coord.y,
-                "longitude": track_point.coord.x,
-                "altitude": track_point.coord.z,
+                "latitude": track_point.utm_coord.y,
+                "longitude": track_point.utm_coord.x,
+                "altitude": track_point.utm_coord.z,
                 "width": 2448,
                 "height": 2048
             }

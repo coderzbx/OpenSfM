@@ -151,6 +151,8 @@ class ShotMetadata(object):
         self.compass = None
         self.capture_time = None
         self.skey = None
+        self.gps_status = 1
+        self.imu_status = 1
 
 
 class ShotMesh(object):

@@ -28,7 +28,7 @@ from opensfm.context import parallel_map, current_memory_usage
 
 logger = logging.getLogger(__name__)
 output_pose_log = False
-pose_fix_type = 0 #0:fix all pose, 1:fix pose which status double 1, 2:fix pose which gps status is 1
+pose_fix_type = 0 #0:fix all pose, 1:fix pose which status double 1
 
 
 def _add_camera_to_bundle(ba, camera, constant):
@@ -167,8 +167,14 @@ def bundle(graph, reconstruction, gcp, config):
         t = shot.pose.translation
         # ---
         # modify by kd
-        # ba.add_shot(shot.id, shot.camera.id, r, t, False)
-        ba.add_shot(shot.id, shot.camera.id, r, t, True)
+        if pose_fix_type == 0:
+            ba.add_shot(shot.id, shot.camera.id, r, t, True)
+        elif pose_fix_type == 1:
+            # fix pose double 1
+            if shot.metadata.gps_status == 1 and shot.metadata.imu_status == 1:
+                ba.add_shot(shot.id, shot.camera.id, r, t, True)
+        else:
+            ba.add_shot(shot.id, shot.camera.id, r, t, False)
         # ---
         #
         if output_pose_log:
@@ -277,8 +283,14 @@ def bundle_single_view(graph, reconstruction, shot_id, config):
     t = shot.pose.translation
     # ---
     # modify by kd
-    # ba.add_shot(shot.id, camera.id, r, t, False)
-    ba.add_shot(shot.id, camera.id, r, t, True)
+    if pose_fix_type == 0:
+        ba.add_shot(shot.id, shot.camera.id, r, t, True)
+    elif pose_fix_type == 1:
+        # fix pose double 1
+        if shot.metadata.gps_status == 1 and shot.metadata.imu_status == 1:
+            ba.add_shot(shot.id, shot.camera.id, r, t, True)
+    else:
+        ba.add_shot(shot.id, shot.camera.id, r, t, False)
     # ---
     #
     if output_pose_log:
@@ -371,8 +383,14 @@ def bundle_local(graph, reconstruction, gcp, central_shot_id, config):
         t = shot.pose.translation
         # ---
         # modify by kd
-        # ba.add_shot(shot.id, shot.camera.id, r, t, shot.id in boundary)
-        ba.add_shot(shot.id, shot.camera.id, r, t, True)
+        if pose_fix_type == 0:
+            ba.add_shot(shot.id, shot.camera.id, r, t, True)
+        elif pose_fix_type == 1:
+            # fix pose double 1
+            if shot.metadata.gps_status == 1 and shot.metadata.imu_status == 1:
+                ba.add_shot(shot.id, shot.camera.id, r, t, True)
+        else:
+            ba.add_shot(shot.id, shot.camera.id, r, t, shot.id in boundary)
         # ---
         #
         if output_pose_log:
@@ -586,6 +604,10 @@ def get_image_metadata(data, image):
         t_matrix = r_matrix.dot(-c_matrix)
         metadata.r_matrix = r_matrix
         metadata.t_matrix = t_matrix
+    if 'gps_status' in exif:
+        metadata.gps_status = exif.get('gps_status', 1)
+    if 'imu_status' in exif:
+        metadata.imu_status = exif.get('imu_status', 1)
     else:
         metadata.gps_position = [0.0, 0.0, 0.0]
         metadata.gps_dop = 999999.0
@@ -828,11 +850,24 @@ def bootstrap_reconstruction(data, graph, im1, im2, p1, p2):
     shot2.pose.set_rotation_matrix(r_matrix, permissive=True)
     shot2.pose.set_origin(shot2.metadata.gps_position)
     reconstruction.add_shot(shot2)
-    logger.info("==================================")
-
+    #
+    if output_pose_log:
+        [x, y, z] = shot2.metadata.gps_position
+        real_gps = [x, y, z]
+        if data.reference_lla_exists():
+            reference = data.load_reference()
+            reference.to_lla(x, y, z)
+            real_gps = [reference.lon, reference.lat, reference.alt]
+        c_r = shot2.pose.get_rotation_matrix()
+        logger.info(
+            "[check pos] bootstrap reconstruction, line817, image2: {}, r:{}, t:{}, R:{}, CR:{}, T:{}, C:{}, GPS:{}".format(
+                im2, shot2.pose.rotation, shot2.pose.translation,
+                shot2.metadata.r_matrix, c_r, shot2.metadata.t_matrix, shot2.metadata.gps_position, real_gps
+            ))
+    #
     graph_inliers = nx.Graph()
     triangulate_shot_features(graph, graph_inliers, reconstruction, im1, data.config)
-
+    #
     logger.info("Triangulated: {}".format(len(reconstruction.points)))
     report['triangulated_points'] = len(reconstruction.points)
 
@@ -1481,7 +1516,6 @@ def grow_reconstruction(data, graph, graph_inliers, reconstruction, images, gcp)
                 remove_outliers(
                     graph_inliers, reconstruction, config, bundled_points)
                 step['local_bundle'] = brep
-
             break
         else:
             logger.info("Some images can not be added")
