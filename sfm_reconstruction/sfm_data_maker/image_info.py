@@ -10,9 +10,9 @@ import time
 
 # from exif import Image
 
-from defines import Track, TrackPoint
-from camera_info import SfMCamera
-from label import self_full_labels
+from .defines import Track, TrackPoint
+from .camera_info import SfMCamera
+from .label import self_full_labels
 
 
 class ImageInfo(object):
@@ -43,35 +43,14 @@ class ImageInfo(object):
         if not os.path.exists(self._images_dir):
             os.makedirs(self._images_dir)
 
-        self._exif_images_dir = os.path.join(self._sfm_data_dir, "exif_images")
-        if not os.path.exists(self._exif_images_dir):
-            os.makedirs(self._exif_images_dir)
-
-        self._undistorted_dir = os.path.join(self._sfm_data_dir, "undistorted")
-        if not os.path.exists(self._undistorted_dir):
-            os.makedirs(self._undistorted_dir)
-
-        self._images_resize_dir = os.path.join(self._sfm_data_dir, "images_resize")
-        if not os.path.exists(self._images_resize_dir):
-            os.makedirs(self._images_resize_dir)
-
         self._masks_dir = os.path.join(self._sfm_data_dir, "masks")
         if os.path.exists(self._seg_images_dir):
             if not os.path.exists(self._masks_dir):
                 os.makedirs(self._masks_dir)
 
-        self._undistorted_masks_dir = os.path.join(self._sfm_data_dir, "undistorted_masks")
-        if os.path.exists(self._seg_images_dir):
-            if not os.path.exists(self._undistorted_masks_dir):
-                os.makedirs(self._undistorted_masks_dir)
-
         self._segmentations_dir = os.path.join(self._sfm_data_dir, "segmentations")
         if not os.path.exists(self._segmentations_dir):
             os.makedirs(self._segmentations_dir)
-
-        self._undistorted_segmentations_dir = os.path.join(self._sfm_data_dir, "undistorted_segmentations")
-        if not os.path.exists(self._undistorted_segmentations_dir):
-            os.makedirs(self._undistorted_segmentations_dir)
 
         self._exif_dir = os.path.join(self._sfm_data_dir, "exif")
         if not os.path.exists(self._exif_dir):
@@ -110,55 +89,13 @@ class ImageInfo(object):
             if self._combine_track:
                 sfm_image_name = image_name
             sfm_image_path = os.path.join(self._images_dir, sfm_image_name)
-            undistorted_image_name = "{}.jpg".format(sfm_image_name)
-            undistorted_image_path = os.path.join(self._undistorted_dir, undistorted_image_name)
-            images_resize_path = os.path.join(self._images_resize_dir, sfm_image_name)
-            # add exif to image
-            # with open(src_image_path, 'rb') as fr:
-            #     exif_image = Image(fr)
-            #     print("{} has exif? {}".format(src_image_path, exif_image.has_exif))
-            #     for track_point in self._track.track_point_list:
-            #         if not isinstance(track_point, TrackPoint):
-            #             return
-            #         if track_point_id == track_point.track_point_id:
-            #             exif_image.set("model", "pointgrey")
-            #             exif_image.set("orientation", 1)
-            #             exif_image.set("make", "kuandeng")
-            #             exif_image.set("projection_type", "perspective")
-            #             exif_image.set("height", 2048)
-            #             exif_image.set("width", 2448)
-            #             exif_image.set("ImageHeight", 2048)
-            #             exif_image.set("ImageWidth", 2448)
-            #
-            #             exif_image.set("gps_longitude_ref", "East")
-            #             exif_image.set("gps_latitude_ref", "North")
-            #             logitude = track_point.coord.x
-            #             degree = int(logitude)
-            #             minitue = int((logitude - degree) * 60)
-            #             second = logitude * 3600 - degree * 3600 - minitue * 60
-            #             exif_image.gps_longitude = (degree, minitue, second)
-            #             #
-            #             latitude = track_point.coord.y
-            #             degree = int(latitude)
-            #             minitue = int((latitude - degree) * 60)
-            #             second = latitude * 3600 - degree * 3600 - minitue * 60
-            #             #
-            #             exif_image.gps_latitude = (degree, minitue, second)
-            #             exif_image.gps_altitude = track_point.coord.z
-            #             break
-            #
-            #     exif_image_path = os.path.join(self._exif_images_dir, image_name)
-            #     with open(exif_image_path, "wb") as fw:
-            #         fw.write(exif_image.get_file())
 
             # copy
             shutil.copy(src=src_image_path, dst=sfm_image_path)
-            shutil.copy(src=src_image_path, dst=undistorted_image_path)
-            shutil.copy(src=src_image_path, dst=images_resize_path)
             #
             self._id_track_point_map[track_point_id] = sfm_image_name
 
-    def make_exif(self):
+    def make_exif(self, origin_pos_path):
         if not isinstance(self._track, Track):
             return
         if not isinstance(self._sfm_camera, SfMCamera):
@@ -191,13 +128,9 @@ class ImageInfo(object):
             lla_c = [track_point.coord.x, track_point.coord.y, track_point.coord.z]
             origin_pos = {
                 sfm_image_name: {
-                    "ang_R": [],
-                    "lla_R": R_json,
-                    "lla_T": T_json,
-                    "lla_C": lla_c,
-                    "utm_R": track_point.R,
-                    "utm_T": track_point.T,
-                    "utm_C": track_point.C
+                    "R": track_point.R,
+                    "T": track_point.T,
+                    "C": track_point.C
                 }
             }
             origin_pos_data.append(origin_pos)
@@ -219,8 +152,8 @@ class ImageInfo(object):
                 },
                 # ms->s
                 "capture_time": time_stamp / 1000,
-                "gps_status": 1,
-                "imu_status": 1,
+                "gps_status": track_point.gps_status,
+                "imu_status": track_point.imu_status,
                 "r": track_point.R,
                 "t": track_point.T,
                 "c": track_point.C
@@ -241,7 +174,7 @@ class ImageInfo(object):
             with open(exif_file_path, "w") as f:
                 json.dump(exif_data, f)
 
-        with open(os.path.join(self._sfm_data_dir, "origin_pos.json"), "w") as f:
+        with open(origin_pos_path, "w") as f:
             json.dump(origin_pos_data, f)
 
     def make_photo_info(self):
@@ -282,12 +215,9 @@ class ImageInfo(object):
             sfm_image_name = self._id_track_point_map[track_point_id]
             mask_name = "{}.png".format(sfm_image_name)
             mask_path = os.path.join(self._masks_dir, mask_name)
-            undistorted_mask_path = os.path.join(self._undistorted_masks_dir, mask_name)
             segmentation_path = os.path.join(self._segmentations_dir, mask_name)
-            undistorted_segmentations_path = os.path.join(self._undistorted_segmentations_dir, mask_name)
             #
-            if os.path.exists(mask_path) and os.path.exists(undistorted_mask_path) and \
-               os.path.exists(segmentation_path) and os.path.exists(undistorted_segmentations_path):
+            if os.path.exists(mask_path) and os.path.exists(segmentation_path):
                 print("{} exists".format(mask_name))
                 continue
             # convert png to id
@@ -305,14 +235,12 @@ class ImageInfo(object):
                 label_data[np.where((seg_image_mat == color).all(axis=2))] = category_id
             #
             cv2.imwrite(mask_path, label_data)
-            cv2.imwrite(undistorted_mask_path, label_data)
             cv2.imwrite(segmentation_path, label_data)
-            cv2.imwrite(undistorted_segmentations_path, label_data)
 
             end = time.time()
             print("Processed {} in {} ms".format(mask_name, str((end - start) * 1000)))
 
-    def make_mask_images(self):
+    def make_mask_images(self, cpu_num=16):
         if not os.path.exists(self._masks_dir):
             return
 
@@ -325,7 +253,7 @@ class ImageInfo(object):
             self._queue.put(src_seg_path)
 
         self_threads = []
-        for i in range(16):
+        for i in range(cpu_num):
             t = multiprocessing.Process(target=self.convert_image_mask)
             t.daemon = True
             self_threads.append(t)

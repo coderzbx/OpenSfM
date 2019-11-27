@@ -6,17 +6,14 @@ from defines import Device, Camera, CameraParams, CameraDistortion, CameraExtend
 
 
 class DeviceInfo(object):
-    def __init__(self, track_dir, track_id):
-        self._track_dir = track_dir
-        self._track_id = track_id
+    def __init__(self, device_path):
+        self._device_path = device_path
 
     def parse_device(self):
-        track_dir_name = "test_{}".format(self._track_id)
-        device_path = os.path.join(self._track_dir, track_dir_name, "device.json")
-        if not os.path.exists(device_path):
+        if not os.path.exists(self._device_path):
             return
 
-        with open(device_path, "r") as f:
+        with open(self._device_path, "r") as f:
             result = json.load(f)
         if result is None:
             return
@@ -68,13 +65,12 @@ class DeviceInfo(object):
             }
         return device
 
-    def get_camera_extend_info(self):
-        track_dir_name = "test_{}".format(self._track_id)
-        camera_extend_path = os.path.join(self._track_dir, track_dir_name, "trackExtend.json")
-        if not os.path.exists(camera_extend_path):
+    @staticmethod
+    def get_camera_extend_info(extend_json_path):
+        if not os.path.exists(extend_json_path):
             return
 
-        with open(camera_extend_path, "r") as f:
+        with open(extend_json_path, "r") as f:
             json_data = json.load(f)
         if json_data is None:
             return

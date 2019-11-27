@@ -4,12 +4,11 @@ import argparse
 import time
 import json
 
-from track_info import TrackInfo
-from camera_info import SfMCamera
-from image_info import ImageInfo
-from config import Config
-from util import geo
-from reconstruct import Reconstruct
+from .track_info import TrackInfo
+from .camera_info import SfMCamera
+from .image_info import ImageInfo
+from .config import Config
+
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
@@ -31,9 +30,13 @@ if __name__ == '__main__':
         os.makedirs(data_set_dir)
 
     # parse device => get camera
-    track_handler = TrackInfo(track_dir=track_dir, track_id=track_id, reverse=params.reverse_track)
-    track_handler.parse_track()
-    track_handler.parse_device()
+    track_dir_name = "test_" + track_id
+    track_json_path = os.path.join(track_dir, track_dir_name, "track.json")
+    track_handler = TrackInfo(workspace_dir=track_dir, track_json_path=track_json_path,
+                              track_id=track_id, reverse=params.reverse_track)
+    track_handler.parse_track(track_json_path=track_json_path)
+    device_json_path = os.path.join(track_dir, track_dir_name, "device.json")
+    track_handler.parse_device(device_path=device_json_path)
     #
     sfm_camera = track_handler.sfm_camera
     if not isinstance(sfm_camera, SfMCamera):
@@ -50,16 +53,16 @@ if __name__ == '__main__':
         json.dump(camera_model_data, f)
     print("make camera_models.json succeed")
     #
-    print("making reference_lla.json...")
-    reference_lla_data = track_handler.make_reference_lla()
-    reference_lla_path = os.path.join(data_set_dir, "reference_lla.json")
-    with open(reference_lla_path, "w") as f:
-        json.dump(reference_lla_data, f)
-    latitude = reference_lla_data["latitude"]
-    longitude = reference_lla_data["longitude"]
-    altitude = reference_lla_data["altitude"]
-    reference_handler = geo.TopocentricConverter(reflat=latitude, reflon=longitude, refalt=altitude)
-    print("make reference_lla.json succeed")
+    # print("making reference_lla.json...")
+    # reference_lla_data = track_handler.make_reference_lla()
+    # reference_lla_path = os.path.join(data_set_dir, "reference_lla.json")
+    # with open(reference_lla_path, "w") as f:
+    #     json.dump(reference_lla_data, f)
+    # latitude = reference_lla_data["latitude"]
+    # longitude = reference_lla_data["longitude"]
+    # altitude = reference_lla_data["altitude"]
+    # reference_handler = geo.TopocentricConverter(reflat=latitude, reflon=longitude, refalt=altitude)
+    # print("make reference_lla.json succeed")
     #
     print("making exif and format images...")
     track_dir_name = "test_{}".format(track_id)
@@ -69,7 +72,8 @@ if __name__ == '__main__':
                            combine_track=params.combine,
                            reverse_track=params.reverse_track)
     image_info.format_images()
-    image_info.make_exif()
+    origin_pos_path = os.path.join(data_set_dir, "origin_pos.json")
+    image_info.make_exif(origin_pos_path=origin_pos_path)
     image_info.make_photo_info()
     image_info.make_mask_images()
     print("make exif succeed")
@@ -84,9 +88,9 @@ if __name__ == '__main__':
             f.write("{}\n".format(config_data))
     print("make config.yaml succeed")
     #
-    print("making reconstruct.json")
-    reconstruct_handler = Reconstruct(camera=sfm_camera, reference=reference_handler, track=track_handler.track)
-    print("reconstruct succeed")
+    # print("making reconstruct.json")
+    # reconstruct_handler = Reconstruct(camera=sfm_camera, reference=reference_handler, track=track_handler.track)
+    # print("reconstruct succeed")
     #
     time2 = time.time()
     print("works done in {} s".format(time2 - time1))

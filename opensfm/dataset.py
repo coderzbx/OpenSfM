@@ -40,6 +40,22 @@ class DataSet(object):
         self._load_config()
         self._load_image_list()
         self._load_mask_list()
+        self._track_id = ""
+        self._output_root_path = ""
+
+        task_info_path = os.path.join(data_path, "task_info.json")
+        if os.path.exists(task_info_path):
+            with open(task_info_path) as f:
+                task_data = json.load(f)
+                self._track_id = task_data["track_id"]
+                output_root_path = task_data["output_root_path"]
+                self._output_root_path = os.path.join(output_root_path, self._track_id)
+
+    def track_id(self):
+        return self._track_id
+
+    def output_root_path(self):
+        return self._output_root_path
 
     def _load_config(self):
         config_file = os.path.join(self.data_path, 'config.yaml')

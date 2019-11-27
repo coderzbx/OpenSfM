@@ -22,6 +22,39 @@ logger = logging.getLogger(__name__)
 
 
 def compute_depthmaps(data, graph, reconstruction):
+    new_pos = []
+    for shot in reconstruction.shots.values():
+        image_name = shot.id
+        R = shot.pose.get_rotation_matrix()
+        R_angle = shot.pose.rotation
+        R_angle_json = np.array(R_angle).reshape(-1, ).tolist()
+        [x, y, z] = shot.pose.get_origin()
+        if data.reference_lla_exists():
+            reference = data.load_reference()
+            reference.to_lla(x, y, z)
+            [x, y, z] = [reference.lon, reference.lat, reference.alt]
+        C = [x, y, z]
+        T = -R.dot(C)
+        T_json = np.array(T).reshape(-1, ).tolist()
+        R_list = np.array(R).reshape(-1, ).tolist()
+        R_json = [
+            [R_list[0], R_list[1], R_list[2]],
+            [R_list[3], R_list[4], R_list[5]],
+            [R_list[6], R_list[7], R_list[8]]
+        ]
+        shot_pos = {
+            image_name: {
+                "R": R_json,
+                "T": T_json,
+                "C": C
+            }
+        }
+        new_pos.append(shot_pos)
+    # new_pos.sort()
+    pos_file_path = os.path.join(os.path.dirname(data.output_root_path()), "new_pos.json")
+    with open(pos_file_path, "w") as f:
+        json.dump(new_pos, f)
+
     """Compute and refine depthmaps for all shots."""
     logger.info('Computing neighbors')
     config = data.config
@@ -57,40 +90,6 @@ def compute_depthmaps(data, graph, reconstruction):
     parallel_map(prune_depthmap_catched, arguments, processes)
 
     merge_depthmaps(data, reconstruction)
-
-    new_pos = []
-    for shot in reconstruction.shots.values():
-        image_name = shot.id
-        R = shot.pose.get_rotation_matrix()
-        R_angle = shot.pose.rotation
-        R_angle_json = np.array(R_angle).reshape(-1, ).tolist()
-        [x, y, z] = shot.pose.get_origin()
-        if data.reference_lla_exists():
-            reference = data.load_reference()
-            reference.to_lla(x, y, z)
-            [x, y, z] = [reference.lon, reference.lat, reference.alt]
-        C = [x, y, z]
-        T = -R.dot(C)
-        T_json = np.array(T).reshape(-1, ).tolist()
-        R_list = np.array(R).reshape(-1, ).tolist()
-        R_json = [
-            [R_list[0], R_list[1], R_list[2]],
-            [R_list[3], R_list[4], R_list[5]],
-            [R_list[6], R_list[7], R_list[8]]
-        ]
-        shot_pos = {
-            image_name: {
-                "sfm_angle_R": R_angle_json,
-                "lla_R": R_json,
-                "lla_T": T_json,
-                "lla_C": C
-            }
-        }
-        new_pos.append(shot_pos)
-    # new_pos.sort()
-    pos_file_path = os.path.join(data._depthmap_path(), "../new_pos.json")
-    with open(pos_file_path, "w") as f:
-        json.dump(new_pos, f)
 
 
 def compute_depthmap_catched(arguments):

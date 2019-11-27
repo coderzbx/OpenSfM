@@ -173,6 +173,8 @@ def bundle(graph, reconstruction, gcp, config):
             # fix pose double 1
             if shot.metadata.gps_status == 1 and shot.metadata.imu_status == 1:
                 ba.add_shot(shot.id, shot.camera.id, r, t, True)
+            else:
+                ba.add_shot(shot.id, shot.camera.id, r, t, False)
         else:
             ba.add_shot(shot.id, shot.camera.id, r, t, False)
         # ---
@@ -289,6 +291,8 @@ def bundle_single_view(graph, reconstruction, shot_id, config):
         # fix pose double 1
         if shot.metadata.gps_status == 1 and shot.metadata.imu_status == 1:
             ba.add_shot(shot.id, shot.camera.id, r, t, True)
+        else:
+            ba.add_shot(shot.id, shot.camera.id, r, t, False)
     else:
         ba.add_shot(shot.id, shot.camera.id, r, t, False)
     # ---
@@ -389,6 +393,8 @@ def bundle_local(graph, reconstruction, gcp, central_shot_id, config):
             # fix pose double 1
             if shot.metadata.gps_status == 1 and shot.metadata.imu_status == 1:
                 ba.add_shot(shot.id, shot.camera.id, r, t, True)
+            else:
+                ba.add_shot(shot.id, shot.camera.id, r, t, shot.id in boundary)
         else:
             ba.add_shot(shot.id, shot.camera.id, r, t, shot.id in boundary)
         # ---
@@ -1399,6 +1405,9 @@ def grow_reconstruction(data, graph, graph_inliers, reconstruction, images, gcp)
     """Incrementally add shots to an initial reconstruction."""
     config = data.config
     report = {'steps': []}
+    gcp = None
+    if config['bundle_use_gcp']:
+        gcp = data.load_ground_control_points()
     '''
     #
     for shot_id in reconstruction.shots:
@@ -1494,9 +1503,9 @@ def grow_reconstruction(data, graph, graph_inliers, reconstruction, images, gcp)
                 logger.info("Re-triangulating")
                 # ---delete by kd
                 # align_reconstruction(reconstruction, gcp, config)
-                b1rep = bundle(graph_inliers, reconstruction, None, config)
+                b1rep = bundle(graph_inliers, reconstruction, gcp, config)
                 rrep = retriangulate(graph, graph_inliers, reconstruction, config)
-                b2rep = bundle(graph_inliers, reconstruction, None, config)
+                b2rep = bundle(graph_inliers, reconstruction, gcp, config)
                 remove_outliers(graph_inliers, reconstruction, config)
                 step['bundle'] = b1rep
                 step['retriangulation'] = rrep
@@ -1506,13 +1515,13 @@ def grow_reconstruction(data, graph, graph_inliers, reconstruction, images, gcp)
             elif should_bundle.should():
                 # ---delete by kd
                 # align_reconstruction(reconstruction, gcp, config)
-                brep = bundle(graph_inliers, reconstruction, None, config)
+                brep = bundle(graph_inliers, reconstruction, gcp, config)
                 remove_outliers(graph_inliers, reconstruction, config)
                 step['bundle'] = brep
                 should_bundle.done()
             elif config['local_bundle_radius'] > 0:
                 bundled_points, brep = bundle_local(
-                    graph_inliers, reconstruction, None, image, config)
+                    graph_inliers, reconstruction, gcp, image, config)
                 remove_outliers(
                     graph_inliers, reconstruction, config, bundled_points)
                 step['local_bundle'] = brep
@@ -1630,7 +1639,9 @@ def incremental_reconstruction(data, graph):
     #     data.invent_reference_lla(images)
 
     remaining_images = set(images)
-    gcp = data.load_ground_control_points()
+    gcp = None
+    if data.config['bundle_use_gcp']:
+        gcp = data.load_ground_control_points()
     common_tracks = tracking.all_common_tracks(graph, tracks)
     reconstructions = []
     pairs = compute_image_pairs(common_tracks, data)

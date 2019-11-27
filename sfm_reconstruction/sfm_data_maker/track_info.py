@@ -1,17 +1,15 @@
 # -*- coding:utf-8 -*-
-import os
 import json
 
-import numpy as np
-
-from defines import Point, TrackPoint, Track, Camera, CameraParams
-from device_info import DeviceInfo
-from camera_info import SfMCamera
+from .defines import Point, TrackPoint, Track, Camera, CameraParams
+from .device_info import DeviceInfo
+from .camera_info import SfMCamera
 
 
 class TrackInfo(object):
-    def __init__(self, track_dir, track_id, reverse=False):
-        self._track_dir = track_dir
+    def __init__(self, workspace_dir, track_json_path, track_id, reverse=False):
+        self._workspace_dir = workspace_dir
+        self._track_json_path = track_json_path
         self._track_id = track_id
         self._reverse = reverse
         self._device = None
@@ -43,12 +41,7 @@ class TrackInfo(object):
     def reverse(self, value):
         self._reverse = value
 
-    def parse_track(self):
-        track_dir_name = "test_{}".format(self._track_id)
-        track_json_path = os.path.join(self._track_dir, track_dir_name, "track.json")
-        if not os.path.exists(track_json_path):
-            return
-
+    def parse_track(self, track_json_path):
         with open(track_json_path, "r") as f:
             json_data = json.load(f)
 
@@ -145,13 +138,16 @@ class TrackInfo(object):
                 track_point.amb_status = int(point_info["ambStatus"])
             if "qualityNum" in point_info:
                 track_point.quality_num = int(point_info["qualityNum"])
+                track_point.imu_status = int(point_info["qualityNum"])
+            if "gnssQuality" in point_info:
+                track_point.gps_status = int(point_info["gnssQuality"])
             track.add_track_point(track_point)
 
         self._track = track
         return track
 
-    def parse_device(self):
-        device_info = DeviceInfo(track_dir=self._track_dir, track_id=self._track_id)
+    def parse_device(self, device_path):
+        device_info = DeviceInfo(device_path=device_path)
         device = device_info.parse_device()
         self._device = device
         for k, v in device.camera_map.items():

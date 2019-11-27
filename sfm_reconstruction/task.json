@@ -1,0 +1,56 @@
+{
+    "input": {
+        "params": [
+            {
+                "k": "cpuNums",
+                "v": "20"
+            },
+            {
+                "k": "trackIds",
+                "v": "400832841_20190916140707591"
+            }
+        ],
+        "rootPath": "/data/sfm_reconstruction/input/",
+        "types": [
+            {
+                "array": true,
+                "desc": "原始图片，004.jpg",
+                "fileName": "source_image",
+                "path": ["rootPath/source_image/400832841_20190916140707591/xx.jpg"],
+                "storeType": "hdfs",
+                "type": "source_image"
+            },
+            {
+                "array": true,
+                "desc": "地面区域识别结果，png图片",
+                "fileName": "ground_recognition",
+                "path": ["rootPath/ground_recognition/400832841_20190916140707591/xx.png"],
+                "storeType": "hdfs",
+                "type": "ground_recognition"
+            },
+            {
+                "array": true,
+                "desc": "track_all轨迹信息",
+                "fileName": "track_all",
+                "path": ["rootPath/track_all/400832841_20190916140707591/track_all.json"],
+                "storeType": "hdfs",
+                "type": "track_all"
+            }
+        ]
+    },
+    "logsPath": "/data/sfm_reconstruction/logs/",
+    "output": {
+        "rootPath": "/data/sfm_reconstruction/output/",
+        "types": [
+            {
+                "array": false,
+                "desc": "稠密点云",
+                "fileName": "sfm_reconstruction",
+                "key": "",
+                "path": ["rootPath/sfm_reconstruction/400832841_20190916140707591/merged.ply"],
+                "storeType": "hdfs"
+            }
+        ]
+    },
+    "taskId": "1"
+}

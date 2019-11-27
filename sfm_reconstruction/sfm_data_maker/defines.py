@@ -70,6 +70,8 @@ class TrackPoint(object):
         self._post_difference = False
         self._amb_status = 1
         self._quality_num = 1
+        self._gps_status = 1
+        self._imu_status = 1
 
     @property
     def track_point_id(self):
@@ -326,6 +328,22 @@ class TrackPoint(object):
     @quality_num.setter
     def quality_num(self, value):
         self._quality_num = value
+
+    @property
+    def gps_status(self):
+        return self._gps_status
+
+    @gps_status.setter
+    def gps_status(self, value):
+        self._gps_status = value
+
+    @property
+    def imu_status(self):
+        return self._imu_status
+
+    @imu_status.setter
+    def imu_status(self, value):
+        self._imu_status = value
 
 
 class TrackPointExtendInfo(object):

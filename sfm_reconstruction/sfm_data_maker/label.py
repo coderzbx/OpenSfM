@@ -3,7 +3,7 @@ from collections import namedtuple
 
 Label = namedtuple(
     'Label', ['en_name', 'id', 'categoryId', 'color', 'name'])
-self_full_labels = {
+self_full_old_labels = {
     Label('other', 0, 255, (64, 64, 32), u'其他'),
     Label('ignore', 1, 255, (0, 0, 0), u'Ignore'),
     Label('lane', 2, 255, (255, 69, 0), u'车道标线-白色'),
@@ -85,4 +85,13 @@ self_full_labels = {
     Label('r_l_line', 97, 97, (205, 0, 0), u'右黄线'),
     Label('l_y_line', 98, 98, (205, 90, 106), u'左黄线'),
     Label('dot_line', 99, 99, (238, 130, 238), u'虚实线_虚线'),
+}
+
+self_full_labels = {
+    Label('other', 0, 255, (64, 64, 32), u'其他'),
+    Label('ignore', 1, 255, (0, 0, 0), u'Ignore'),
+    Label('road', 18, 1, (128, 64, 128), u'道路'),
+    Label('objects', 19, 0, (218, 165, 32), u'车辆及路面上其他物体'),
+    Label('curb', 20, 80, (0, 139, 139), u'虚拟车道线-路缘石'),
+    Label('fence', 44, 160, (5, 107, 47), u'可移动栅栏')
 }

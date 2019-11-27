@@ -47,10 +47,7 @@ class GPSAlignmentParams(object):
     def format_params(self):
         params_data = {
             "use_altitude_tag": self._use_altitude_tag,
-            "align_method": self._align_method,
-            "align_orientation_prior": self._align_orientation_prior,
-            "bundle_use_gps": self._bundle_use_gps,
-            "bundle_use_gcp": self._bundle_use_gcp
+            "bundle_use_gps": self._bundle_use_gps
         }
         return params_data
 
@@ -99,12 +96,9 @@ class Config(object):
         params_data = {
             "processes": self._processes,
             "feature_type": self._feature_type,
-            "feature_root": self._feature_root,
-            "feature_min_frames": self._feature_min_frames,
             "feature_process_size": self._feature_process_size,
-            "feature_use_adaptive_suppression": self._feature_use_adaptive_suppression,
             "segmentation_ignore_values": [0],
-            "optimize_camera_parameters": False
+            "pose_fix_type": 1
         }
         return params_data
 
