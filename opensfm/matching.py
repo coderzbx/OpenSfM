@@ -38,7 +38,13 @@ def match_images(data, ref_images, cand_images):
     # Generate pairs for matching
     pairs, preport = pairs_selection.match_candidates_from_metadata(
         ref_images, cand_images, exifs, data)
-    logger.info('Matching {} image pairs'.format(len(pairs)))
+
+    # Match them !
+    return match_images_with_pairs(data, exifs, ref_images, pairs), preport
+
+
+def match_images_with_pairs(data, exifs, ref_images, pairs):
+    """ Perform pair matchings given pairs. """
 
     # Store per each image in ref for processing
     per_image = {im: [] for im in ref_images}
@@ -53,31 +59,62 @@ def match_images(data, ref_images, cand_images):
 
     # Perform all pair matchings in parallel
     start = timer()
+    logger.info('Matching {} image pairs'.format(len(pairs)))
     mem_per_process = 512
     jobs_per_process = 2
     processes = context.processes_that_fit_in_memory(data.config['processes'], mem_per_process)
     logger.info("Computing pair matching with %d processes" % processes)
     matches = context.parallel_map(match_unwrap_args, args, processes, jobs_per_process)
     logger.info(
-        'Matched {} pairs for {} ref_images and {} cand_images in '
-        '{} seconds.'.format(
-            len(pairs), len(ref_images), len(cand_images), timer() - start))
+        'Matched {} pairs for {} ref_images {} '
+        'in {} seconds ({} seconds/pair).'.format(
+            len(pairs),
+            len(ref_images),
+            log_projection_types(pairs, ctx.exifs, ctx.cameras),
+            timer() - start,
+            (timer() - start) / len(pairs) if pairs else 0))
 
     # Index results per pair
-    pairs = {}
+    resulting_pairs = {}
     for im1, im1_matches in matches:
         for im2, m in im1_matches.items():
-            pairs[im1, im2] = m
+            resulting_pairs[im1, im2] = m
 
-    return pairs, preport
+    return resulting_pairs
 
 
-def save_matches(data, matched_pairs):
+def log_projection_types(pairs, exifs, cameras):
+    if not pairs:
+        return ""
+
+    projection_type_pairs = {}
+    for im1, im2 in pairs:
+        pt1 = cameras[exifs[im1]['camera']].projection_type
+        pt2 = cameras[exifs[im2]['camera']].projection_type
+
+        if pt1 not in projection_type_pairs:
+            projection_type_pairs[pt1] = {}
+
+        if pt2 not in projection_type_pairs[pt1]:
+            projection_type_pairs[pt1][pt2] = []
+
+        projection_type_pairs[pt1][pt2].append((im1, im2))
+
+    output = "("
+    for pt1 in projection_type_pairs:
+        for pt2 in projection_type_pairs[pt1]:
+            output += "{}-{}: {}, ".format(
+                pt1, pt2, len(projection_type_pairs[pt1][pt2]))
+
+    return output[:-2] + ")"
+
+
+def save_matches(data, images_ref, matched_pairs):
     """ Given pairwise matches (image 1, image 2) - > matches,
-    save them such as only image 1 matches will store the data.
+    save them such as only {image E images_ref} will store the matches.
     """
 
-    matches_per_im1 = defaultdict(dict)
+    matches_per_im1 = {im: {} for im in images_ref}
     for (im1, im2), m in matched_pairs.items():
         matches_per_im1[im1][im2] = m
 
@@ -130,32 +167,35 @@ def match(im1, im2, camera1, camera2, data):
     p2, f2, _ = feature_loader.instance.load_points_features_colors(
         data, im2, masked=True)
 
-    if p1 is None or p2 is None:
+    if p1 is None or len(p1) < 2 or p2 is None or len(p2) < 2:
         return []
 
     config = data.config
     matcher_type = config['matcher_type'].upper()
+    symmetric_matching = config['symmetric_matching']
 
-    w1, w2 = None, None
-    if 'WORDS' in matcher_type:
+    if matcher_type == 'WORDS':
         w1 = feature_loader.instance.load_words(data, im1, masked=True)
         w2 = feature_loader.instance.load_words(data, im2, masked=True)
         if w1 is None or w2 is None:
             return []
 
-    if matcher_type == 'WORDS':
-        matches = csfm.match_using_words(
-            f1, w1, f2, w2[:, 0],
-            data.config['lowes_ratio'],
-            data.config['bow_num_checks'])
-    elif matcher_type == 'WORDS_SYMMETRIC':
-        matches = match_words_symmetric(f1, w1, f2, w2, config)
+        if symmetric_matching:
+            matches = match_words_symmetric(f1, w1, f2, w2, config)
+        else:
+            matches = match_words(f1, w1, f2, w2, config)
     elif matcher_type == 'FLANN':
         i1 = feature_loader.instance.load_features_index(data, im1, masked=True)
-        i2 = feature_loader.instance.load_features_index(data, im2, masked=True)
-        matches = match_flann_symmetric(f1, i1, f2, i2, config)
+        if symmetric_matching:
+            i2 = feature_loader.instance.load_features_index(data, im2, masked=True)
+            matches = match_flann_symmetric(f1, i1, f2, i2, config)
+        else:
+            matches = match_flann(i1, f2, config)
     elif matcher_type == 'BRUTEFORCE':
-        matches = match_brute_force_symmetric(f1, f2, config)
+        if symmetric_matching:
+            matches = match_brute_force_symmetric(f1, f2, config)
+        else:
+            matches = match_brute_force(f1, f2, config)
     else:
         raise ValueError("Invalid matcher_type: {}".format(matcher_type))
 
@@ -169,11 +209,16 @@ def match(im1, im2, camera1, camera2, data):
     time_2d_matching = timer() - time_start
     t = timer()
 
+    symmetric = 'symmetric' if config['symmetric_matching'] \
+        else 'one-way'
     robust_matching_min_match = config['robust_matching_min_match']
     if len(matches) < robust_matching_min_match:
         logger.debug(
-            'Matching {} and {}.  Matcher: {} T-desc: {:1.3f} '
-            'Matches: FAILED'.format(im1, im2, matcher_type, time_2d_matching))
+            'Matching {} and {}.  Matcher: {} ({}) T-desc: {:1.3f} '
+            'Matches: FAILED'.format(
+                im1, im2,
+                matcher_type, symmetric,
+                time_2d_matching))
         return []
 
     # robust matching
@@ -189,10 +234,10 @@ def match(im1, im2, camera1, camera2, data):
         rmatches = unfilter_matches(rmatches, m1, m2)
 
     logger.debug(
-        'Matching {} and {}.  Matcher: {} '
+        'Matching {} and {}.  Matcher: {} ({}) '
         'T-desc: {:1.3f} T-robust: {:1.3f} T-total: {:1.3f} '
         'Matches: {} Robust: {} Success: {}'.format(
-            im1, im2, matcher_type,
+            im1, im2, matcher_type, symmetric,
             time_2d_matching, time_robust_matching, time_total,
             len(matches), len(rmatches),
             len(rmatches) >= robust_matching_min_match))
